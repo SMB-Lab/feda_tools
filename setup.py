@@ -2,10 +2,26 @@ from setuptools import setup, find_packages
 
 from feda_tools.__init__ import __version__
 
+extra_bin = [
+    'numpy',
+    'pandas',
+    'matplotlib',
+
+]
+
+extra_test = [
+    'pytest>=4',
+    'pytest-cov>=2',
+]
+
 extra_dev = [
-        'pytest>=4',
-        'pytest-cov>=2',
-    ]
+    *extra_test
+]
+
+extra_ci = [
+    *extra_test,
+    'python-coveralls',
+]
 
 setup(
     name='feda_tools',
@@ -22,7 +38,7 @@ setup(
         'matplotlib',
     ],
     extras_require= {
-        'dev': extra_dev,
+        'dev' : extra_dev,
     },
     entry_points={
     'console_scripts': [
