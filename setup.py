@@ -39,6 +39,7 @@ setup(
     ],
     extras_require= {
         'dev' : extra_dev,
+        'ci' : extra_ci,
     },
     entry_points={
     'console_scripts': [
