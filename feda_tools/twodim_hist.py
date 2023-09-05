@@ -9,3 +9,6 @@ def cmd_args(args=None):
     parsed_args = parser.parse_args(args)
 
     print((parsed_args.x, parsed_args.y))
+
+def add(x, y):
+    return x + y
