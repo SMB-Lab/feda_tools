@@ -36,6 +36,7 @@ setup(
         'numpy',
         'pandas',
         'matplotlib',
+        'pyyaml',
     ],
     extras_require= {
         'dev' : extra_dev,
@@ -43,7 +44,7 @@ setup(
     },
     entry_points={
     'console_scripts': [
-        'cmd=feda_tools.twodim_hist:cmd_args',
+        '2dhist=feda_tools.twodim_hist:make_2dhist',
         ],
     },
 )
