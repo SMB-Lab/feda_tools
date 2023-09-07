@@ -8,6 +8,19 @@ def test_calc_list_entries():
     assert "Sg/Sr (prompt)" in calc_list
     assert "S(prompt)/S(total)" in calc_list
 
+def test_parse_args():
+    """
+    Test to make sure that parse_args returns the expected arguments
+    """
+    from feda_tools.twodim_hist import parse_args
+
+    mock_folder = 'data_folder'
+    mock_file = 'plot_file.yaml'
+    data_folder, plot_file = parse_args(['data_folder', 'plot_file.yaml',])
+
+    assert data_folder == mock_folder
+    assert plot_file == mock_file
+
 def test_get_plot_dict(monkeypatch):
     """
     test to ensure that the get_plot_dict method returns a dict with the 

@@ -22,15 +22,30 @@ def get_plot_dict(yaml_file):
     plot_dict = yaml.safe_load(yaml_file)
     return plot_dict
 
-def make_2dhist(args=None):
-    
+def arg_check(arg):
+    path = str(arg)
+
+    if os.path.exists(path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError(path + ' could not be found. ' + 
+                                         'Check for typos or for errors in your relative path string')
+
+def parse_args(args):
+    # print(args)
     parser = argparse.ArgumentParser()
-    parser.add_argument('data_folder', type=str)
-    parser.add_argument('plot_file', type=str)
+    parser.add_argument('data_folder', type=arg_check)
+    parser.add_argument('plot_file', type=arg_check)
     parsed_args = parser.parse_args(args)
     print((parsed_args.data_folder, parsed_args.plot_file))
+
+    return parsed_args.data_folder, parsed_args.plot_file
+
+def make_2dhist(args=None):
     
-    with open(parsed_args.plot_file) as yaml_file:
+    data_folder, plot_file = parse_args(args)
+    
+    with open(plot_file) as yaml_file:
         plot_dict = get_plot_dict(yaml_file)
     
     for plot in plot_dict:
