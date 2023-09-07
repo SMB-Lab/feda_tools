@@ -1,4 +1,6 @@
 
+import pytest
+
 def test_calc_list_entries():
     """
     test to ensure that the calc_list contains the supported calculations
@@ -8,11 +10,19 @@ def test_calc_list_entries():
     assert "Sg/Sr (prompt)" in calc_list
     assert "S(prompt)/S(total)" in calc_list
 
-def test_parse_args():
+def test_parse_args(monkeypatch):
     """
     Test to make sure that parse_args returns the expected arguments
     """
     from feda_tools.twodim_hist import parse_args
+    import feda_tools.twodim_hist
+
+    # the mock data is designed to pass the arg_check, so just mock arg_check 
+    # and return it.
+    def mock_arg_check(arg):
+        return arg
+    
+    monkeypatch.setattr(feda_tools.twodim_hist, "arg_check", mock_arg_check)
 
     mock_folder = 'data_folder'
     mock_file = 'plot_file.yaml'
@@ -20,6 +30,30 @@ def test_parse_args():
 
     assert data_folder == mock_folder
     assert plot_file == mock_file
+
+def test_arg_check(monkeypatch):
+    """
+    Test to ensure that arg_check will raise an exception if provided a path 
+    that does not exist.
+    """
+    import os.path
+    from feda_tools.twodim_hist import arg_check
+    from argparse import ArgumentTypeError
+
+    path = "mock_path"
+    def mock_exists(path):
+        return False
+
+    monkeypatch.setattr(os.path, 'exists', mock_exists)
+   
+    errmsg = str(path + ' could not be found. ' 
+                 + 'Check for typos or for errors in your relative path string')
+   
+    with pytest.raises(ArgumentTypeError) as excinfo:
+        arg_check(path)
+    assert str(excinfo.value == errmsg)
+
+
 
 def test_get_plot_dict(monkeypatch):
     """
