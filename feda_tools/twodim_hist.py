@@ -7,6 +7,10 @@ import argparse
 import os
 import yaml
 import pandas as pd
+from matplotlib import colors
+from matplotlib.ticker import PercentFormatter
+import matplotlib.pyplot as plt
+import numpy as np
 
 calc_list = [
     "Mean Macro Time (sec)",
@@ -65,13 +69,74 @@ def get_calc(label, data_folder):
     if label == "Mean Macro Time (sec)":
         
         # data_folder = data_folder 
-        df = get_data(data_folder)
+        df = get_data(data_folder + "\\bi4_bur" )
         df["Mean Macro Time (ms)"] = df["Mean Macro Time (ms)"].div(1000)
-        calc_df = df.rename(columns={"Mean Macro Time (ms)": "Mean Macro Time (sec)"})
-        
-        # get the MMT (secs) column as a df and return
-        calc = calc_df[[label]]
-        return calc
+        df = df.rename(columns={"Mean Macro Time (ms)": "Mean Macro Time (sec)"})
+        return df
+    
+    elif label == "Sg/Sr (prompt)":
+        df = get_data(data_folder + "\\bi4_bur")
+        df[label] = df["Green Count Rate (KHz)"].div(df["S prompt red (kHz) | 14-200"])
+        df[label] = np.log(df[label])
+        return df
+
+def make_plot(x, y, xlabel, ylabel):
+
+    n_binsx = 101
+    n_binsy = 101
+    c_map = 'gist_ncar_r'
+
+    # Create a Figure, which doesn't have to be square.
+    fig = plt.figure(layout='constrained')
+    
+    # Create the main axes, leaving 25% of the figure space at the top and on the
+    # right to position marginals.
+    ax = fig.add_gridspec(top=0.75, right=0.75).subplots()
+    
+    # The main axes' aspect can be fixed.
+    ax.set(aspect="auto")
+    ax_histx = ax.inset_axes([0, 1.05, 1.0, 0.25], sharex=ax)
+    ax_histy = ax.inset_axes([1.05, 0, 0.25, 1], sharey=ax)
+    # ax_cbar = ax.inset_axes([1.05, 1.05, 0.25, .25])
+    # ax_histy = ax.inset_axes([1.05, .5, 0.25, 1], sharey=ax)
+    # ax_cbar = ax.inset_axes([1.05, 0, 0.25, 1], sharey=ax)
+    # Draw the scatter plot and marginals.
+    # no labels
+    ax_histx.tick_params(axis="x", labelbottom=False)
+    ax_histy.tick_params(axis="y", labelleft=False)
+
+    # the 2d hist plot:
+    h = ax.hist2d(x, y, bins = [n_binsx, n_binsy], cmap = c_map)
+    mappable = h[3]
+    fig.colorbar(mappable, ax=ax, location='left')
+
+
+    # now determine nice limits by hand:
+    binwidth = 0.25
+    xymax = max(np.max(np.abs(x)), np.max(np.abs(y)))
+    lim = (int(xymax/binwidth) + 1) * binwidth
+
+    bins = np.arange(-lim, lim + binwidth, binwidth)
+    ax_histx.hist(x, bins=n_binsx)
+    ax_histy.hist(y, bins=n_binsy, orientation='horizontal')
+
+    ax.set_xlabel(xlabel, fontsize = 20)
+    ax.set_ylabel(ylabel, fontsize = 20)
+
+def clean_data(df):
+    if "Number of Photons" in df.columns:
+        df = df.loc[df["Number of Photons"] > 0]
+    elif "Number of Photons (fit window) (green)" in df.columns:
+        df = df.loc[df["Number of Photons (fit window) (green)"] > 0]
+    elif "Number of Photons (fit window) (red)" in df.columns:
+        df = df.loc[df["Number of Photons (fit window) (green)"] > 0]
+    elif "Number of Photons (fit window) (yellow)" in df.columns:
+        df = df.loc[df["Number of Photons (fit window) (green)"] > 0]
+    
+    df.replace([np.inf, -np.inf], np.nan, inplace =True)
+    df.dropna(inplace = True)
+
+    return df
 
 def make_2dhist(args=None):
     
@@ -95,7 +160,7 @@ def make_2dhist(args=None):
             xfolder = plot_dict[plot]['xfolder']
             print("Getting " + xlabel + " from " + xfolder)
             xdata_folder = data_folder + "\\" + xfolder
-            x_df = get_data(xdata_folder)[[xlabel]]
+            x_df = get_data(xdata_folder)
 
         if ylabel in calc_list:
             print("Calculating " + ylabel)
@@ -104,10 +169,18 @@ def make_2dhist(args=None):
             yfolder = plot_dict[plot]['yfolder']
             print("Getting " + ylabel + " from " + yfolder)
             ydata_folder = data_folder + "\\" + yfolder
-            y_df = get_data(ydata_folder)[[ylabel]]
+            y_df = get_data(ydata_folder)
 
-        dataset = pd.concat([x_df, y_df], axis = 1)
+        # clean the data i.e. remove photon counts == 0, ignore NaN and inf, etc.
+        x_df = clean_data(x_df)
+        y_df = clean_data(y_df)
+
+        dataset = pd.concat([x_df[[xlabel]], y_df[[ylabel]]], axis = 1)
         print(dataset)
+
+        make_plot(dataset[xlabel].to_numpy(), dataset[ylabel].to_numpy(), xlabel, ylabel)
+    
+    plt.show()
 
         
 
