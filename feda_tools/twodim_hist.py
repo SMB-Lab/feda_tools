@@ -6,6 +6,7 @@ Author - Frank Duffy
 import argparse
 import os
 import yaml
+import pandas as pd
 
 calc_list = [
     "Mean Macro Time (sec)",
@@ -46,22 +47,31 @@ def parse_args(args):
 
     return parsed_args.data_folder, parsed_args.plot_file
 
+def get_data(data_folder):
+    print("Getting data in " + data_folder)
+    # print(os.getcwd())
+    df_list = []
+    for file in os.listdir(data_folder):
+        df_list.append(pd.read_csv(data_folder + "\\" + file, sep = '\t'))
+    df = pd.concat(df_list)
+    # print(df)
+    return df
+
 def get_calc(label, data_folder):
     """
-    perform a calculation on the data frame and return it
+    perform the requisite calculation on the data frame and return it
     """
     
     if label == "Mean Macro Time (sec)":
-        data_folder = "bi4_bur"
-
-        # bur_df["Mean Macro Time (ms)"] = bur_df["Mean Macro Time (ms)"].div(1000)
-        # calc_df = bur_df.rename(columns={"Mean Macro Time (ms)": "Mean Macro Time (sec)"})
-        # print(calc_df)
-        # calc = calc_df[label]
-        return None
-
-def get_data(data_folder):
-    return None
+        
+        # data_folder = data_folder 
+        df = get_data(data_folder)
+        df["Mean Macro Time (ms)"] = df["Mean Macro Time (ms)"].div(1000)
+        calc_df = df.rename(columns={"Mean Macro Time (ms)": "Mean Macro Time (sec)"})
+        
+        # get the MMT (secs) column as a df and return
+        calc = calc_df[[label]]
+        return calc
 
 def make_2dhist(args=None):
     
@@ -71,16 +81,34 @@ def make_2dhist(args=None):
         plot_dict = get_plot_dict(yaml_file)
     
     for plot in plot_dict:
-        xlabel = plot_dict[plot]['xlabel']
-        xfolder = plot_dict[plot]['xfolder']
-        ylabel = plot_dict[plot]['ylabel']
-        yfolder = plot_dict[plot]['yfolder']
         
+        xlabel = plot_dict[plot]['xlabel']
+        ylabel = plot_dict[plot]['ylabel']
+        
+        print("Plotting (" + xlabel + ", " + ylabel + ")")
 
         # check if coordinate is a calculation
         if xlabel in calc_list:
             print("Calculating " + xlabel)
-            x_series = get_calc(xlabel, data_folder)
+            x_df = get_calc(xlabel, data_folder)
+        else:
+            xfolder = plot_dict[plot]['xfolder']
+            print("Getting " + xlabel + " from " + xfolder)
+            xdata_folder = data_folder + "\\" + xfolder
+            x_df = get_data(xdata_folder)[[xlabel]]
+
+        if ylabel in calc_list:
+            print("Calculating " + ylabel)
+            y_df = get_calc(ylabel, data_folder)
+        else:
+            yfolder = plot_dict[plot]['yfolder']
+            print("Getting " + ylabel + " from " + yfolder)
+            ydata_folder = data_folder + "\\" + yfolder
+            y_df = get_data(ydata_folder)[[ylabel]]
+
+        dataset = pd.concat([x_df, y_df], axis = 1)
+        print(dataset)
+
         
 
  

@@ -99,4 +99,54 @@ def test_get_plot_dict(monkeypatch):
     assert plot_dict == mock_dict
     
 def test_get_data():
+    """
+    Ensure that get_data returns the proper dataframe using real test data.
     
+    test_data.bur was created by running get_data on the actual data path to 
+    obtain a dataframe that represented the test data in full. The test data 
+    was then written back to csv in combined form with index=False using the
+    DataFrame.to_csv method.
+    
+    """
+    import pandas as pd
+    import numpy as np
+    from feda_tools.twodim_hist import get_data
+
+    expected_data_path= './tests/test data/test_get_data/test_data.bur'
+    expected_df = pd.read_csv(expected_data_path, sep = '\t')
+    print(expected_df)
+    
+    actual_data_path= './tests/test data/High_1hr_split/burstwise_All 0.1771#60_0/bi4_bur/'
+    actual_df = get_data(actual_data_path)
+
+    assert np.array_equal(actual_df, expected_df)
+
+def test_get_calc_MMT_secs(monkeypatch):
+    """
+    Test that a "Mean Macro Time (secs)" (MMT) calculation is handled
+    correctly by returning a pandas series whose values have been divided
+    by 1000
+    """
+    import pandas as pd
+    import feda_tools.twodim_hist
+    from feda_tools.twodim_hist import get_calc
+    import numpy as np
+
+    mock_folder = 'mock_folder'
+    def mock_get_data(mock_folder):
+        data = {"Mean Macro Time (ms)" : [1.0, 2.0, 3.0]}
+        mock_df = pd.DataFrame(data)
+        return mock_df
+    
+    monkeypatch.setattr(feda_tools.twodim_hist, "get_data", mock_get_data)
+
+    expected_df = pd.DataFrame({"Mean Macro Time (sec)" : [0.001, 0.002, 0.003]}) 
+    actual_df = get_calc("Mean Macro Time (sec)", mock_folder)
+
+    assert np.array_equal(actual_df, expected_df)
+
+
+
+
+
+
