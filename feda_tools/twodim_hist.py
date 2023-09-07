@@ -17,11 +17,9 @@ def get_plot_dict(yaml_file):
     """
     gets the plots specified by the user in the provided yaml file.
     """
-    try:
-        # Conversts yaml doc to python object
-        plot_dict = yaml.safe_load(yaml_file)
-    except yaml.YAMLError as e:
-        print(e)
+
+    # Conversts yaml doc to python object
+    plot_dict = yaml.safe_load(yaml_file)
     return plot_dict
 
 def make_2dhist(args=None):
@@ -40,6 +38,7 @@ def make_2dhist(args=None):
         xfolder = plot_dict[plot]['xfolder']
         ylabel = plot_dict[plot]['ylabel']
         yfolder = plot_dict[plot]['yfolder']
+        print(xlabel)
         
 
  

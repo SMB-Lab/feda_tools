@@ -17,7 +17,7 @@ def test_get_plot_dict(monkeypatch):
     import yaml
 
 
-    def mock_safe_load(stream):
+    def mock_safe_load(yaml_file):
         mock_dict = {
             'plot1': 
             {
@@ -34,5 +34,6 @@ def test_get_plot_dict(monkeypatch):
 
     mock_plot_file = "plot.yaml"
     plot_dict = get_plot_dict(mock_plot_file)
-    assert plot_dict == mock_safe_load(mock_plot_file)
+    mock_dict = mock_safe_load(mock_plot_file)
+    assert plot_dict == mock_dict
     
