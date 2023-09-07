@@ -1,0 +1,96 @@
+colour fit parameters	Scatter Countrate [Hz]:	826.92152061E+0
+colour fit parameters	Const BG, %:	0.00000000E+0
+colour fit parameters	from:	14
+colour fit parameters	to:	225
+colour fit parameters	Convolution:	25
+colour fit parameters	G-factor:	1.04000000E+0
+colour fit parameters	Shift:	0.00000000E+0
+colour fit parameters	Shift sp:	0.00000000E+0
+colour fit parameters	Shift ss:	0.00000000E+0
+colour fit parameters	FP Names.[0]:	Tau
+colour fit parameters	FP Names.[1]:	gamma
+colour fit parameters	FP Names.[2]:	r0
+colour fit parameters	FP Names.[3]:	rho
+colour fit parameters	FP Names.[4]:	BIFL scatter?
+colour fit parameters	FP Names.[5]:	2I*: P+2S?
+colour fit parameters	FP Names.[6]:	r Scatter
+colour fit parameters	FP Names.[7]:	r Experimental
+colour fit parameters	fix.[0]Boolean:	FALSE
+colour fit parameters	fix.[1]Boolean:	FALSE
+colour fit parameters	fix.[2]Boolean:	TRUE
+colour fit parameters	fix.[3]Boolean:	FALSE
+colour fit parameters	fix.[4]Boolean:	TRUE
+colour fit parameters	fix.[5]Boolean:	TRUE
+colour fit parameters	fix.[6]Boolean:	TRUE
+colour fit parameters	fix.[7]Boolean:	TRUE
+colour fit parameters	Init V.[0]Numeric:	4.00000000E+0
+colour fit parameters	Init V.[1]Numeric:	100.00000000E-3
+colour fit parameters	Init V.[2]Numeric:	380.00000000E-3
+colour fit parameters	Init V.[3]Numeric:	200.00000000E-3
+colour fit parameters	Init V.[4]Numeric:	0.00000000E+0
+colour fit parameters	Init V.[5]Numeric:	1.00000000E+0
+colour fit parameters	Init V.[6]Numeric:	0.00000000E+0
+colour fit parameters	Init V.[7]Numeric:	0.00000000E+0
+colour fit parameters	fit N:	23
+
+colour fit parameters	Scatter Countrate [Hz]:	0.00000000E+0
+colour fit parameters	Const BG, %:	0.00000000E+0
+colour fit parameters	from:	55
+colour fit parameters	to:	225
+colour fit parameters	Convolution:	25
+colour fit parameters	G-factor:	1.75603244E+0
+colour fit parameters	Shift:	0.00000000E+0
+colour fit parameters	Shift sp:	0.00000000E+0
+colour fit parameters	Shift ss:	0.00000000E+0
+colour fit parameters	FP Names.[0]:	Tau
+colour fit parameters	FP Names.[1]:	const
+colour fit parameters	FP Names.[2]:	r Scatter
+colour fit parameters	FP Names.[3]:	r Experimental
+colour fit parameters	FP Names.[4]:	r Cut
+colour fit parameters	fix.[0]Boolean:	FALSE
+colour fit parameters	fix.[1]Boolean:	FALSE
+colour fit parameters	fix.[2]Boolean:	TRUE
+colour fit parameters	fix.[3]Boolean:	TRUE
+colour fit parameters	fix.[4]Boolean:	TRUE
+colour fit parameters	Init V.[0]Numeric:	4.05000000E+0
+colour fit parameters	Init V.[1]Numeric:	100.00000000E-3
+colour fit parameters	Init V.[2]Numeric:	0.00000000E+0
+colour fit parameters	Init V.[3]Numeric:	0.00000000E+0
+colour fit parameters	Init V.[4]Numeric:	0.00000000E+0
+colour fit parameters	fit N:	16
+
+colour fit parameters	Scatter Countrate [Hz]:	0.00000000E+0
+colour fit parameters	Const BG, %:	0.00000000E+0
+colour fit parameters	from:	55
+colour fit parameters	to:	225
+colour fit parameters	Convolution:	25
+colour fit parameters	G-factor:	2.40184719E+0
+colour fit parameters	Shift:	0.00000000E+0
+colour fit parameters	Shift sp:	0.00000000E+0
+colour fit parameters	Shift ss:	0.00000000E+0
+colour fit parameters	FP Names.[0]:	Tau
+colour fit parameters	FP Names.[1]:	gamma
+colour fit parameters	FP Names.[2]:	r0
+colour fit parameters	FP Names.[3]:	rho
+colour fit parameters	FP Names.[4]:	BIFL scatter?
+colour fit parameters	FP Names.[5]:	2I*: P+2S?
+colour fit parameters	FP Names.[6]:	r Scatter
+colour fit parameters	FP Names.[7]:	r Experimental
+colour fit parameters	fix.[0]Boolean:	FALSE
+colour fit parameters	fix.[1]Boolean:	FALSE
+colour fit parameters	fix.[2]Boolean:	TRUE
+colour fit parameters	fix.[3]Boolean:	FALSE
+colour fit parameters	fix.[4]Boolean:	TRUE
+colour fit parameters	fix.[5]Boolean:	TRUE
+colour fit parameters	fix.[6]Boolean:	TRUE
+colour fit parameters	fix.[7]Boolean:	TRUE
+colour fit parameters	Init V.[0]Numeric:	4.00000000E+0
+colour fit parameters	Init V.[1]Numeric:	100.00000000E-3
+colour fit parameters	Init V.[2]Numeric:	380.00000000E-3
+colour fit parameters	Init V.[3]Numeric:	200.00000000E-3
+colour fit parameters	Init V.[4]Numeric:	0.00000000E+0
+colour fit parameters	Init V.[5]Numeric:	1.00000000E+0
+colour fit parameters	Init V.[6]Numeric:	0.00000000E+0
+colour fit parameters	Init V.[7]Numeric:	0.00000000E+0
+colour fit parameters	fit N:	23
+
