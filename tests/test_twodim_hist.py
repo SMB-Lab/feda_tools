@@ -98,3 +98,5 @@ def test_get_plot_dict(monkeypatch):
     mock_dict = mock_safe_load(mock_plot_file)
     assert plot_dict == mock_dict
     
+def test_get_data():
+    
