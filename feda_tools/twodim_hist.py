@@ -32,7 +32,6 @@ def arg_check(arg):
                                          'Check for typos or for errors in your relative path string')
 
 def parse_args(args):
-    # print(args)
     parser = argparse.ArgumentParser()
     parser.add_argument('data_folder', type=arg_check)
     parser.add_argument('plot_file', type=arg_check)

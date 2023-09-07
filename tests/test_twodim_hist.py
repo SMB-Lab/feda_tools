@@ -31,7 +31,7 @@ def test_parse_args(monkeypatch):
     assert data_folder == mock_folder
     assert plot_file == mock_file
 
-def test_arg_check(monkeypatch):
+def test_arg_check_exception(monkeypatch):
     """
     Test to ensure that arg_check will raise an exception if provided a path 
     that does not exist.
@@ -53,7 +53,21 @@ def test_arg_check(monkeypatch):
         arg_check(path)
     assert str(excinfo.value == errmsg)
 
+def test_arg_check_pass(monkeypatch):
+    """
+    Test to ensure that arg_check will pass and return the path when provided 
+    a path that exists
+    """
+    import os.path
+    from feda_tools.twodim_hist import arg_check
 
+    mock_path = "mock_path"
+    def mock_exists(mock_path):
+        return mock_path
+
+    monkeypatch.setattr(os.path, 'exists', mock_exists)
+
+    assert mock_path == arg_check(mock_path)
 
 def test_get_plot_dict(monkeypatch):
     """
