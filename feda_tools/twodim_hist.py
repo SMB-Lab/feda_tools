@@ -76,9 +76,31 @@ def get_calc(label, data_folder):
     
     elif label == "Sg/Sr (prompt)":
         df = get_data(data_folder + "\\bi4_bur")
-        df[label] = df["Green Count Rate (KHz)"].div(df["S prompt red (kHz) | 14-200"])
-        df[label] = np.log(df[label])
+        df[label] = df["Green Count Rate (KHz)"].div(df.iloc[:, 21])
+        # df[label] = np.log(df[label])
         return df
+
+def clean_data(df):
+    if "Number of Photons" in df.columns:
+        df = df.loc[df["Number of Photons"] > 0]
+    # elif "Number of Photons (fit window) (green)" in df.columns:
+    #     df = df.loc[df["Number of Photons (fit window) (green)"] > 0]
+    # elif "Number of Photons (fit window) (red)" in df.columns:
+    #     df = df.loc[df["Number of Photons (fit window) (red)"] > 0]
+    # elif "Number of Photons (fit window) (yellow)" in df.columns:
+    #     df = df.loc[df["Number of Photons (fit window) (yellow)"] > 0]
+    
+    if "Unnamed: 14" in df.columns:
+        df.drop(labels="Unnamed: 14", axis = 1, inplace=True)
+        df = df[df["Tau (green)"].between(0,10)]
+
+    print(df)
+    df.replace([np.inf, -np.inf], np.nan, inplace =True)
+    print(df)
+    df.dropna(inplace = True)
+    print(df)
+
+    return df
 
 def make_plot(x, y, xlabel, ylabel):
 
@@ -123,21 +145,6 @@ def make_plot(x, y, xlabel, ylabel):
     ax.set_xlabel(xlabel, fontsize = 20)
     ax.set_ylabel(ylabel, fontsize = 20)
 
-def clean_data(df):
-    if "Number of Photons" in df.columns:
-        df = df.loc[df["Number of Photons"] > 0]
-    elif "Number of Photons (fit window) (green)" in df.columns:
-        df = df.loc[df["Number of Photons (fit window) (green)"] > 0]
-    elif "Number of Photons (fit window) (red)" in df.columns:
-        df = df.loc[df["Number of Photons (fit window) (green)"] > 0]
-    elif "Number of Photons (fit window) (yellow)" in df.columns:
-        df = df.loc[df["Number of Photons (fit window) (green)"] > 0]
-    
-    df.replace([np.inf, -np.inf], np.nan, inplace =True)
-    df.dropna(inplace = True)
-
-    return df
-
 def make_2dhist(args=None):
     
     data_folder, plot_file = parse_args(args)
@@ -172,10 +179,32 @@ def make_2dhist(args=None):
             y_df = get_data(ydata_folder)
 
         # clean the data i.e. remove photon counts == 0, ignore NaN and inf, etc.
-        x_df = clean_data(x_df)
-        y_df = clean_data(y_df)
+        # x_df = clean_data(x_df)
+        # y_df = clean_data(y_df)
 
-        dataset = pd.concat([x_df[[xlabel]], y_df[[ylabel]]], axis = 1)
+        print(x_df[xlabel])
+        print(y_df[ylabel])
+
+        print(x_df)
+
+        # dataset = pd.concat([x_df, y_df[ylabel]], axis = 1)
+        if np.array_equal(x_df, y_df):
+            # same dataset, just take x_df
+            print("same data set")
+            dataset = x_df
+        elif ylabel in x_df.columns:
+            # conflict, assume we'd rather have the ylabel column in y_df
+            print(ylabel + " in x_df")
+            x_df.drop(ylabel, axis = 1, inplace=True)
+            dataset = x_df.join(y_df[ylabel])
+        else:
+            # no conflicts, just join
+            print("***No conflicts***")
+            dataset = x_df.join(y_df[ylabel])
+        
+        print(dataset)
+
+        dataset = clean_data(dataset)
         print(dataset)
 
         make_plot(dataset[xlabel].to_numpy(), dataset[ylabel].to_numpy(), xlabel, ylabel)
