@@ -92,7 +92,7 @@ def clean_data(df):
     
     if "Unnamed: 14" in df.columns:
         df.drop(labels="Unnamed: 14", axis = 1, inplace=True)
-        df = df[df["Tau (green)"].between(0,10)]
+        df = df[df["Tau (green)"].between(0,6)]
 
     print(df)
     df.replace([np.inf, -np.inf], np.nan, inplace =True)
@@ -104,7 +104,7 @@ def clean_data(df):
 
 def make_plot(x, y, xlabel, ylabel):
 
-    n_binsx = 101
+    n_binsx = 151
     n_binsy = 101
     c_map = 'gist_ncar_r'
 
@@ -126,6 +126,10 @@ def make_plot(x, y, xlabel, ylabel):
     # no labels
     ax_histx.tick_params(axis="x", labelbottom=False)
     ax_histy.tick_params(axis="y", labelleft=False)
+
+    if ylabel == "Sg/Sr (prompt)":
+        n_binsy = np.geomspace(np.min(y), np.max(y), num=n_binsy)
+        plt.yscale("log")
 
     # the 2d hist plot:
     h = ax.hist2d(x, y, bins = [n_binsx, n_binsy], cmap = c_map)
