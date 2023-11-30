@@ -76,23 +76,27 @@ def get_calc(label, data_folder):
     
     elif label == "Sg/Sr (prompt)":
         df = get_data(data_folder + "\\bi4_bur")
-        df[label] = df["Green Count Rate (KHz)"].div(df.iloc[:, 21])
+        df[label] = df["Green Count Rate (KHz)"].div(df["S prompt red (kHz) | 0-200"])
         # df[label] = np.log(df[label])
         return df
 
 def clean_data(df):
     if "Number of Photons" in df.columns:
         df = df.loc[df["Number of Photons"] > 0]
-    # elif "Number of Photons (fit window) (green)" in df.columns:
-    #     df = df.loc[df["Number of Photons (fit window) (green)"] > 0]
-    # elif "Number of Photons (fit window) (red)" in df.columns:
-    #     df = df.loc[df["Number of Photons (fit window) (red)"] > 0]
-    # elif "Number of Photons (fit window) (yellow)" in df.columns:
-    #     df = df.loc[df["Number of Photons (fit window) (yellow)"] > 0]
+    elif "Number of Photons (fit window) (green)" in df.columns:
+        df = df.loc[df["Number of Photons (fit window) (green)"] > 0]
+    elif "Number of Photons (fit window) (red)" in df.columns:
+        df = df.loc[df["Number of Photons (fit window) (red)"] > 0]
+    elif "Number of Photons (fit window) (yellow)" in df.columns:
+        df = df.loc[df["Number of Photons (fit window) (yellow)"] > 0]
     
     if "Unnamed: 14" in df.columns:
         df.drop(labels="Unnamed: 14", axis = 1, inplace=True)
-        df = df[df["Tau (green)"].between(0,6)]
+        # df = df[df["Tau (yellow)"].between(1,6)]
+        # df = df[df["r Scatter (yellow)"].between(-0.2,1.5)]
+    
+    # if "TGX_TRR" in df.columns:
+    #     df = df[df["TGX_TRR"].between(-5,5)]
 
     print(df)
     df.replace([np.inf, -np.inf], np.nan, inplace =True)
@@ -102,10 +106,10 @@ def clean_data(df):
 
     return df
 
-def make_plot(x, y, xlabel, ylabel):
+def make_plot(x, y, xlabel, xrange, ylabel):
 
-    n_binsx = 151
-    n_binsy = 101
+    n_binsx = 41
+    n_binsy = 41
     c_map = 'gist_ncar_r'
 
     # Create a Figure, which doesn't have to be square.
@@ -127,10 +131,16 @@ def make_plot(x, y, xlabel, ylabel):
     ax_histx.tick_params(axis="x", labelbottom=False)
     ax_histy.tick_params(axis="y", labelleft=False)
 
+    if xrange != "auto":
+        n_binsx = np.linspace(xrange["min"], xrange["max"], num=n_binsx)
+
+    # if yrange != "auto":
+    #     n_binsy = np.linspace(yrange["min"], yrange["max"], num=n_binsy)
+ 
     if ylabel == "Sg/Sr (prompt)":
         n_binsy = np.geomspace(np.min(y), np.max(y), num=n_binsy)
         plt.yscale("log")
-
+ 
     # the 2d hist plot:
     h = ax.hist2d(x, y, bins = [n_binsx, n_binsy], cmap = c_map)
     mappable = h[3]
@@ -160,6 +170,7 @@ def make_2dhist(args=None):
         
         xlabel = plot_dict[plot]['xlabel']
         ylabel = plot_dict[plot]['ylabel']
+        xrange = plot_dict[plot]['xrange']
         
         print("Plotting (" + xlabel + ", " + ylabel + ")")
 
@@ -211,7 +222,7 @@ def make_2dhist(args=None):
         dataset = clean_data(dataset)
         print(dataset)
 
-        make_plot(dataset[xlabel].to_numpy(), dataset[ylabel].to_numpy(), xlabel, ylabel)
+        make_plot(dataset[xlabel].to_numpy(), dataset[ylabel].to_numpy(), xlabel, xrange, ylabel)
     
     plt.show()
 
