@@ -159,6 +159,8 @@ def make_plot(x, y, xlabel, xrange, ylabel):
     ax.set_xlabel(xlabel, fontsize = 20)
     ax.set_ylabel(ylabel, fontsize = 20)
 
+    return fig, ax
+
 def make_2dhist(args=None):
     
     data_folder, plot_file = parse_args(args)
