@@ -143,6 +143,7 @@ def make_plot(x, y, xlabel, xrange, ylabel):
  
     # the 2d hist plot:
     h = ax.hist2d(x, y, bins = [n_binsx, n_binsy], cmap = c_map)
+    hist_values_2d = h[0]
     mappable = h[3]
     fig.colorbar(mappable, ax=ax, location='left')
 
@@ -159,7 +160,7 @@ def make_plot(x, y, xlabel, xrange, ylabel):
     ax.set_xlabel(xlabel, fontsize = 20)
     ax.set_ylabel(ylabel, fontsize = 20)
 
-    return fig, ax
+    return fig, ax, hist_values_2d
 
 def make_2dhist(args=None):
     
