@@ -142,7 +142,7 @@ def make_plot(x, y, xlabel, xrange, ylabel):
         plt.yscale("log")
  
     # the 2d hist plot:
-    h = ax.hist2d(x, y, bins = [n_binsx, n_binsy], cmap = c_map)
+    h = ax.hist2d(x, y, bins = [n_binsx, n_binsy], range=[[xmin, xmax], [ymin, ymax]], cmap = c_map)
     hist_values_2d = h[0]
     mappable = h[3]
     fig.colorbar(mappable, ax=ax, location='left')
