@@ -4,12 +4,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-import scipy
-import scipy.stats
-
 import pathlib
-import tttrlib
 import os
 import tqdm
 
