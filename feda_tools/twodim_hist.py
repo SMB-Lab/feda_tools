@@ -106,10 +106,10 @@ def clean_data(df):
 
     return df
 
-def make_plot(x, y, xlabel, xrange, ylabel):
+def make_plot(x, y, xlabel, ylabel, xrange, yrange, bins):
 
-    n_binsx = 41
-    n_binsy = 41
+    n_binsx = bins["x"]
+    n_binsy = bins["y"] 
     c_map = 'gist_ncar_r'
 
     # Create a Figure, which doesn't have to be square.
@@ -123,9 +123,7 @@ def make_plot(x, y, xlabel, xrange, ylabel):
     ax.set(aspect="auto")
     ax_histx = ax.inset_axes([0, 1.05, 1.0, 0.25], sharex=ax)
     ax_histy = ax.inset_axes([1.05, 0, 0.25, 1], sharey=ax)
-    # ax_cbar = ax.inset_axes([1.05, 1.05, 0.25, .25])
-    # ax_histy = ax.inset_axes([1.05, .5, 0.25, 1], sharey=ax)
-    # ax_cbar = ax.inset_axes([1.05, 0, 0.25, 1], sharey=ax)
+
     # Draw the scatter plot and marginals.
     # no labels
     ax_histx.tick_params(axis="x", labelbottom=False)
@@ -134,15 +132,15 @@ def make_plot(x, y, xlabel, xrange, ylabel):
     if xrange != "auto":
         n_binsx = np.linspace(xrange["min"], xrange["max"], num=n_binsx)
 
-    # if yrange != "auto":
-    #     n_binsy = np.linspace(yrange["min"], yrange["max"], num=n_binsy)
+    if yrange != "auto":
+        n_binsy = np.linspace(yrange["min"], yrange["max"], num=n_binsy)
  
     if ylabel == "Sg/Sr (prompt)":
         n_binsy = np.geomspace(np.min(y), np.max(y), num=n_binsy)
         plt.yscale("log")
  
     # the 2d hist plot:
-    h = ax.hist2d(x, y, bins = [n_binsx, n_binsy], range=[[xmin, xmax], [ymin, ymax]], cmap = c_map)
+    h = ax.hist2d(x, y, bins = [n_binsx, n_binsy], cmap = c_map)
     hist_values_2d = h[0]
     mappable = h[3]
     fig.colorbar(mappable, ax=ax, location='left')
