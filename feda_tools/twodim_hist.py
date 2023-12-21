@@ -107,8 +107,8 @@ def clean_data(df):
     return df
 
 def make_plot(x, y, xlabel, ylabel, xrange, yrange, bins):
-    # x is an array like 
-    # y is an array like
+    # x is an array-like 
+    # y is an array-like
     # xlabel is a string
     # ylabel is a string
     # xrange is either the string "auto" or a dict {"min": <your num here>, "max": <your num here>}
