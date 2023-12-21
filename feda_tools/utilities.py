@@ -7,6 +7,7 @@ import pandas as pd
 import pathlib
 import os
 import tqdm
+import tttrlib
 
 def update_tttr_dict(
     df: pd.DataFrame,
