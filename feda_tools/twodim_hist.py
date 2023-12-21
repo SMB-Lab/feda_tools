@@ -111,9 +111,9 @@ def make_plot(x, y, xlabel, ylabel, xrange, yrange, bins):
     # y is an array-like
     # xlabel is a string
     # ylabel is a string
-    # xrange is either the string "auto" or a dict {"min": <your num here>, "max": <your num here>}
-    # yrange is either the string "auto" or a dict {"min": <your num here>, "max": <your num here>}
-    # bins is a dict {"x": <your num here>, "y": <your num here>}
+    # xrange is either the string "auto" or a dict {"min": <your float/int here>, "max": <your float/int here>}
+    # yrange is either the string "auto" or a dict {"min": <your float/int here>, "max": <your float/int here>}
+    # bins is a dict {"x": <your int here>, "y": <your int here>}
 
     n_binsx = bins["x"]
     n_binsy = bins["y"] 
