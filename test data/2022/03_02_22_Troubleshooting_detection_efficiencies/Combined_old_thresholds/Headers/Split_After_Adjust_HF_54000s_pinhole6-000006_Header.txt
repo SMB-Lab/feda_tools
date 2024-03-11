@@ -1,0 +1,107 @@
+Tag Version: 1.0.00 
+
+File_GUID                               {67286A88-ADBE-4E74-E5A1-02F3D637A1C4}
+File_AssuredContent                     HydraHarp: HWSETG SWSETG
+CreatorSW_ContentVersion                3.0
+CreatorSW_Name                          HydraHarp AcqUI
+CreatorSW_Version                       3.0.0.2
+File_CreatingTime                       Fri Mar 04 12:39:00 2022
+
+File_Comment                            T3 Mode
+Measurement_Mode                        3
+Measurement_SubMode                     0
+TTResult_StopReason                     0
+Fast_Load_End                           <empty Tag>
+TTResultFormat_TTTRRecType              16843524
+TTResultFormat_BitsPerRecord            32
+MeasDesc_BinningFactor                  2
+MeasDesc_Offset                         0
+MeasDesc_AcquisitionTime                54000000
+MeasDesc_StopAt                         -1
+MeasDesc_StopOnOvfl                     False
+MeasDesc_Restart                        False
+CurSWSetting_DispLog                    True
+CurSWSetting_DispAxisTimeFrom           0
+CurSWSetting_DispAxisTimeTo             51
+CurSWSetting_DispAxisCountFrom          0
+CurSWSetting_DispAxisCountTo            10000
+CurSWSetting_DispCurves                 8
+CurSWSetting_DispCurve_MapTo(0)         0
+CurSWSetting_DispCurve_Show(0)          True
+CurSWSetting_DispCurve_MapTo(1)         1
+CurSWSetting_DispCurve_Show(1)          True
+CurSWSetting_DispCurve_MapTo(2)         2
+CurSWSetting_DispCurve_Show(2)          True
+CurSWSetting_DispCurve_MapTo(3)         3
+CurSWSetting_DispCurve_Show(3)          True
+CurSWSetting_DispCurve_MapTo(4)         4
+CurSWSetting_DispCurve_Show(4)          False
+CurSWSetting_DispCurve_MapTo(5)         5
+CurSWSetting_DispCurve_Show(5)          False
+CurSWSetting_DispCurve_MapTo(6)         6
+CurSWSetting_DispCurve_Show(6)          False
+CurSWSetting_DispCurve_MapTo(7)         7
+CurSWSetting_DispCurve_Show(7)          False
+HW_Type                                 HydraHarp 400
+HW_PartNo                               930021
+HW_Version                              2.0
+HW_SerialNo                             1022332
+HW_Modules                              4
+HWModule_TypeCode(0)                    1000
+HWModule_VersCode(0)                    50987009
+HWModule_TypeCode(1)                    1010
+HWModule_VersCode(1)                    33554954
+HWModule_TypeCode(2)                    1040
+HWModule_VersCode(2)                    18219530
+HWModule_TypeCode(3)                    1040
+HWModule_VersCode(3)                    18219530
+HW_BaseResolution                       1.000000E-012
+HW_InpChannels                          4
+HW_ExternalRefClock                     False
+HW_ExternalDevices                      0
+HWSync_Divider                          2
+HWSync_CFDLevel                         60
+HWSync_CFDZeroCross                     10
+HWSync_Offset                           6200
+HWInpChan_ModuleIdx(0)                  2
+HWInpChan_CFDLevel(0)                   100
+HWInpChan_CFDZeroCross(0)               10
+HWInpChan_Offset(0)                     0
+HWInpChan_Enabled(0)                    True
+HWInpChan_ModuleIdx(1)                  2
+HWInpChan_CFDLevel(1)                   70
+HWInpChan_CFDZeroCross(1)               10
+HWInpChan_Offset(1)                     0
+HWInpChan_Enabled(1)                    True
+HWInpChan_ModuleIdx(2)                  3
+HWInpChan_CFDLevel(2)                   113
+HWInpChan_CFDZeroCross(2)               10
+HWInpChan_Offset(2)                     137
+HWInpChan_Enabled(2)                    True
+HWInpChan_ModuleIdx(3)                  3
+HWInpChan_CFDLevel(3)                   42
+HWInpChan_CFDZeroCross(3)               10
+HWInpChan_Offset(3)                     122
+HWInpChan_Enabled(3)                    True
+MeasDesc_Resolution                     2.000000E-012
+HW_Markers                              4
+HWMarkers_RisingEdge(0)                 True
+HWMarkers_RisingEdge(1)                 True
+HWMarkers_RisingEdge(2)                 True
+HWMarkers_RisingEdge(3)                 True
+HWMarkers_Enabled(0)                    True
+HWMarkers_Enabled(1)                    True
+HWMarkers_Enabled(2)                    True
+HWMarkers_Enabled(3)                    True
+HWMarkers_HoldOff                       0
+MeasDesc_GlobalResolution               5.000048E-008
+TTResult_SyncRate                       19999806
+TTResult_InputRate(0)                   520
+TTResult_InputRate(1)                   221
+TTResult_InputRate(2)                   449
+TTResult_InputRate(3)                   559
+TTResult_StopAfter                      54000000
+TTResult_NumberOfRecords                3000000
+Header_End                              <empty Tag>
+-----------------------
+HydraHarp V2 T3 data

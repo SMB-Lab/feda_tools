@@ -1,0 +1,52 @@
+Margarita_LV2015x64SF.vi
+3/7/2022  4:24 PM
+
+2D Count |>   3974
+Tau (green) |>   0.000000E+0
+Efficiency' (PIE) |>   0.000000E+0
+Background info |>   Cluster:
+  detection eff: green |>   1.000000
+  detection eff: red |>   0.301000
+  green quantum yield |>   0.780000
+  red quantum yield |>   0.440000
+  crosstalk g->r |>   0.020000
+  green background |>   0.313000
+  red background |>   0.080000
+  p |>   1.000000
+  a (direct exc.) |>   0.080000
+  r (ID/IA) |>   1.000000
+  yellow background |>   0.080000
+directory |>   D:\2022\03_02_22_Troubleshooting_detection_efficiencies\Combined_old_thresholds\burstwise_All 0.2944#60\bi4_bur
+Current selection values (Double-click to remove item) |>   Group 0
+-1.313 < TGX-TRR < 1.111
+0.157 < Stoichiometry_PIE=(NFr-aNFy-bNFg+gNFg)/(NFr-aNFy-bNFg+gNFg+rNFy) < 0.662
+0.374 < Sg/Sr (prompt) < 43.871
+
+Comment |>   
+x colour |>   16448250
+y colour |>   16777215
+XY Cursors |>   1-dim array:
+8.1026	0.3077
+0.6616	0.1566
+
+Action |>   Cluster:
+  View only selection |>   ON
+  Invert hilited limits |>   OFF
+  Keep selection |>   OFF
+  Use weights |>   OFF
+  Select Region |>   OFF
+  Cluster? |>   OFF
+X |>   Tau (green)
+Y |>   Efficiency' (PIE)
+Z |>   
+log x |>   OFF
+log y |>   OFF
+log z |>   OFF
+bin array |>   1-dim array:
+40	40	OFF
+100	100	OFF
+0	0	OFF
+
+Info |>   User 2administrator from  PHYS-O7010SANAB on 3/7/2022 4:24:39 PM
+Ring |>   ColorMap
+Sel.Mode |>   Green

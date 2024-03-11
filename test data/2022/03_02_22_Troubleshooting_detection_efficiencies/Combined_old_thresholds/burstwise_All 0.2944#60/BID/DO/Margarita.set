@@ -1,0 +1,51 @@
+Margarita_LV2015x64SF.vi
+3/7/2022  9:09 PM
+
+2D Count |>   3068
+Sg/Sr (prompt) |>   0.000000E+0
+Stoichiometry_PIE=(NFr-aNFy-bNFg+gNFg)/(NFr-aNFy-bNFg+gNFg+rNFy) |>   0.000000E+0
+Background info |>   Cluster:
+  detection eff: green |>   1.000000
+  detection eff: red |>   0.125000
+  green quantum yield |>   1.000000
+  red quantum yield |>   1.000000
+  crosstalk g->r |>   0.010000
+  green background |>   0.498000
+  red background |>   0.145000
+  p |>   1.000000
+  a (direct exc.) |>   0.075000
+  r (ID/IA) |>   0.700000
+  yellow background |>   0.148000
+directory |>   D:\2022\03_02_22_Troubleshooting_detection_efficiencies\Combined_old_thresholds\burstwise_All 0.2944#60\bi4_bur
+Current selection values (Double-click to remove item) |>   Group 0
+0.842 < Stoichiometry_PIE=(NFr-aNFy-bNFg+gNFg)/(NFr-aNFy-bNFg+gNFg+rNFy) < 1.206
+6.027 < Sg/Sr (prompt) < 194.412
+
+Comment |>   
+x colour |>   16448250
+y colour |>   16777215
+XY Cursors |>   1-dim array:
+194.4120	6.0274
+1.2061	0.8424
+
+Action |>   Cluster:
+  View only selection |>   ON
+  Invert hilited limits |>   OFF
+  Keep selection |>   OFF
+  Use weights |>   OFF
+  Select Region |>   OFF
+  Cluster? |>   OFF
+X |>   Sg/Sr (prompt)
+Y |>   Stoichiometry_PIE=(NFr-aNFy-bNFg+gNFg)/(NFr-aNFy-bNFg+gNFg+rNFy)
+Z |>   
+log x |>   ON
+log y |>   OFF
+log z |>   OFF
+bin array |>   1-dim array:
+150	100	OFF
+100	100	OFF
+0	0	OFF
+
+Info |>   User 2administrator from  PHYS-O7010SANAB on 3/7/2022 9:09:29 PM
+Ring |>   ColorMap
+Sel.Mode |>   Green
