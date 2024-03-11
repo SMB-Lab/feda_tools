@@ -1,3 +1,6 @@
+# Project specific files
+*.aps
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
