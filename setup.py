@@ -33,9 +33,14 @@ setup(
 
     packages=find_packages(exclude=['tests', 'tests.*']),
     install_requires=[
-        'numpy',
-        'pandas',
-        'matplotlib',
+        'tqdm==4.66.1',
+        'numpy==1.26.2',
+        'pandas==2.1.4',
+        'scipy==1.11.4',
+        'seaborn==0.13.0',
+        'matplotlib==3.8.3',
+        'pathlib==1.0.1',
+        'tttrlib==0.23.9',
         'pyyaml',
     ],
     python_requires= '>=3.11.5, <=3.11.9',
