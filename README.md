@@ -1,7 +1,7 @@
-Installation instructions
+Installation instructions:
 
 1. Clone the repository to your local computer.
-2. Create an anaconda environment exclusive to the package.
+2. Create an anaconda environment exclusive to the package. Create it with Python 3.11.5 or 3.11.9.
 3. Activate the environment.
 4. Open terminal (on OS) or Anaconda terminal (on PC), and navigate to the root of the cloned repository.
 5. Exectute >pip install -e .
