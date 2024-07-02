@@ -38,6 +38,7 @@ setup(
         'matplotlib',
         'pyyaml',
     ],
+    python_requires= '>=3.11.5, <=3.11.9',
     extras_require= {
         'dev' : extra_dev,
         'ci' : extra_ci,
