@@ -8,4 +8,4 @@ Installation instructions:
 6. Check that the dependencies were correctly installed by opening one of the analysis notebooks in your favorite Jupyter Notebook compatible development tool and running the import cell.
 
 Recommendations:
-- Use Anaconda-Navigator and then install Spyder with Spyder-notebook to interact with the analysis notebooks. There are more tools available there than with a basic Jupyter Server. The variable explorer offered by Spyder is very good for debugging analysis, in particular.
+- Use Anaconda-Navigator to install Spyder with Spyder-notebook and use it to interact with the analysis notebooks. There are more tools provided by Spyder than with by the basic Jupyter Server. The variable explorer offered by Spyder is very good for debugging analysis, in particular.
