@@ -8,6 +8,26 @@ import pathlib
 import os
 import tqdm
 
+### define function for extracting the unmasked segments from the thresholded data.
+def extract_unmasked_indices(masked_array):
+    unmasked_indices_lists = []
+    current_indices = []
+
+    # iterate through masked array and collect unmasked index segments
+    for i, value in enumerate(masked_array):
+        if np.ma.is_masked(value):
+            if current_indices:
+                unmasked_indices_lists.append(current_indices)
+                current_indices = []
+        else:
+            current_indices.append(i)
+
+    # handle the last segment
+    if current_indices:
+        unmasked_indices_lists.append(current_indices)
+
+    return unmasked_indices_lists
+
 def calc_running_average(data, window_size):
     window = np.ones(window_size) / window_size
     return np.convolve(data, window, mode='valid')
