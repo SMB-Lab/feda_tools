@@ -8,6 +8,30 @@ import pathlib
 import os
 import tqdm
 
+def calc_interphoton_arrival_times(tttr_data):
+    
+    # - Each detected photon has a time of detection encoded by the macro time + the micro time. **all_macro_times** and **all_micro_times** are arrays whose index is represents the detected photons in order of detection, while the value represents the associated macro or micro time for each photon.
+    # - **macro_res** and **micro_res** represent the resolution of the macro and micro times in seconds.
+    # - The **macro time** indicates the time in units of **macro_res** that the excitation laser was last fired directly before this photon was detected.
+    # - The **micro time** indicates the amount of time in units of **micro_res** that has elapsed since the excitation laser was last fired at which the photon was detected, i.e. it's the amount of time elapsed from the macro time at which the photon was detected.
+    # - The interphoton arrival time is calculated by iterating through **all_macro_times** and **all_micro_times** and calculating the time elapsed between each photon detection event.
+
+    all_macro_times = tttr_data.macro_times
+    all_micro_times = tttr_data.micro_times
+    macro_res =tttr_data.get_header().macro_time_resolution
+    micro_res = tttr_data.get_header().micro_time_resolution
+    
+    #iterate through macro and micro times to calculate delta time between photon events
+    arr_size = len(all_macro_times) - 1
+    interphoton_arrival_times = np.zeros(arr_size, dtype = np.float64)
+    lw = 0.25
+    for i in range(0, len(interphoton_arrival_times)):
+        photon_1 = (all_macro_times[i]*macro_res) + (all_micro_times[i]*micro_res)
+        photon_2 = (all_macro_times[i+1]*macro_res) + (all_micro_times[i+1]*micro_res)
+        interphoton_arrival_times[i] = (photon_2 - photon_1)*1000
+        
+    return interphoton_arrival_times
+
 def filter_burstids(df, bid_path):
     
     # get bid_df to use as a filter on the passed df.
