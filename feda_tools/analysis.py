@@ -8,6 +8,10 @@ import pathlib
 import os
 import tqdm
 
+def calc_running_average(data, window_size):
+    window = np.ones(window_size) / window_size
+    return np.convolve(data, window, mode='valid')
+
 def calc_interphoton_arrival_times(tttr_data):
     
     # - Each detected photon has a time of detection encoded by the macro time + the micro time. **all_macro_times** and **all_micro_times** are arrays whose index is represents the detected photons in order of detection, while the value represents the associated macro or micro time for each photon.
