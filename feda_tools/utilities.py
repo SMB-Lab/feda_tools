@@ -8,6 +8,14 @@ import pathlib
 import os
 import tqdm
 import tttrlib
+import fnmatch
+
+def get_ptu_files(directory):
+    ptu_files = []
+    for file in os.listdir(directory):
+        if fnmatch.fnmatch(file, '*.ptu'):
+            ptu_files.append(file)
+    return ptu_files
 
 def update_tttr_dict(
     df: pd.DataFrame,
