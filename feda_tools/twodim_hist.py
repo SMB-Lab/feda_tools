@@ -165,7 +165,7 @@ def make_plot(x, y, xlabel, ylabel, xrange, yrange, bins):
     ax.set_xlabel(xlabel, fontsize = 20)
     ax.set_ylabel(ylabel, fontsize = 20)
 
-    return fig, ax, hist_values_2d
+    return fig, ax, hist_values_2d, ax_histx, ax_histy
 
 def make_2dhist(args=None):
     
