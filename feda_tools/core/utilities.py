@@ -10,13 +10,6 @@ import tqdm
 import tttrlib
 import fnmatch
 
-def get_ptu_files(directory):
-    ptu_files = []
-    for file in os.listdir(directory):
-        if fnmatch.fnmatch(file, '*.ptu'):
-            ptu_files.append(file)
-    return ptu_files
-
 def update_tttr_dict(
     df: pd.DataFrame,
     data_path: pathlib.Path,
@@ -65,3 +58,18 @@ def read_analysis(
     tttrs = dict()
     update_tttr_dict(df, data_path, tttrs, file_type)
     return df, tttrs
+
+
+def extract_unmasked_indices(masked_array):
+    unmasked_indices_lists = []
+    current_indices = []
+    for i, value in enumerate(masked_array):
+        if np.ma.is_masked(value):
+            if current_indices:
+                unmasked_indices_lists.append(current_indices)
+                current_indices = []
+        else:
+            current_indices.append(i)
+    if current_indices:
+        unmasked_indices_lists.append(current_indices)
+    return unmasked_indices_lists
