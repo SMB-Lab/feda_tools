@@ -29,13 +29,30 @@ class Fit23PreviewWindow(QtWidgets.QWidget):
         self.plot_fit23()
 
     def plot_fit23(self):
-        # This is a placeholder for actual plotting code
         self.canvas.axes.clear()
-        self.canvas.axes.plot([0, 1, 2], [0, 1, 0], label='Sample Fit')
-        self.canvas.axes.set_xlabel('Time')
-        self.canvas.axes.set_ylabel('Intensity')
+
+        counts_model = [x for x in self.fit23.model]
+        
+        # Plot data
+        self.canvas.axes.semilogy([x for x in self.fit23.data]/np.max(self.counts), label='Data')
+        
+        # Plot IRF
+        self.canvas.axes.semilogy(self.counts_irf/np.max(self.counts_irf), label='IRF')
+        
+        # Plot model
+        self.canvas.axes.semilogy(counts_model/np.max(counts_model), label='Model')
+        
+        # Set y-axis limits
+        self.canvas.axes.set_ylim(0.001, np.power(10,1))
+        
+        # Set labels and legend
+        self.canvas.axes.set_ylabel(r'log(Counts)')
+        self.canvas.axes.set_xlabel(r'Channel Nbr.')
         self.canvas.axes.legend()
+        
+        # Draw the canvas
         self.canvas.draw()
+
 
     def start_analysis(self):
         # Emit a signal or call a method to start the full analysis
