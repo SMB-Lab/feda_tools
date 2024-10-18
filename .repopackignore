@@ -1,0 +1,13 @@
+# Add patterns to ignore here, one per line
+# Example:
+# *.log
+# tmp/
+
+notebooks/*
+test data/*
+tests/*
+.github/*
+.gitignore
+.coveragerc
+.gitattributes
+.repopackignore
