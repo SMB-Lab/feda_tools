@@ -1,8 +1,9 @@
 from PyQt6 import QtWidgets, QtCore
-from .widgets import MatplotlibCanvas
+from .widgets import PlotWidget
 from feda_tools.core import analysis as an
 from feda_tools.core import data as dat
 import numpy as np
+import pyqtgraph as pg
 
 class ThresholdAdjustmentWindow(QtWidgets.QWidget):
     threshold_changed = QtCore.pyqtSignal(float)
@@ -60,9 +61,9 @@ class ThresholdAdjustmentWindow(QtWidgets.QWidget):
         load_data_button.clicked.connect(self.load_data)
         layout.addWidget(load_data_button)
 
-        # Matplotlib canvas
-        self.canvas = MatplotlibCanvas(self, width=5, height=4, dpi=100)
-        layout.addWidget(self.canvas)
+        # PyQtGraph Plot Widget
+        self.plot_widget = PlotWidget()
+        layout.addWidget(self.plot_widget)
 
         # Threshold slider
         self.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
@@ -171,14 +172,42 @@ class ThresholdAdjustmentWindow(QtWidgets.QWidget):
         threshold_value = self.mu - threshold_multiplier * self.std
         filtered_values = np.ma.masked_greater(self.logrunavg, threshold_value)
 
-        self.canvas.axes.clear()
-        self.canvas.axes.plot(self.logrunavg, label='Running Average', linestyle='None', marker='o', markersize=2)
-        self.canvas.axes.plot(filtered_values, label='Threshold Values', linestyle='None', marker='.', markersize=2)
-        self.canvas.axes.axhline(y=threshold_value, color='r', linestyle='--', label=f'Threshold ({threshold_multiplier}σ)')
-        self.canvas.axes.set_xlabel('Photon Event #')
-        self.canvas.axes.set_ylabel('log(Photon Interval Time)')
-        self.canvas.axes.legend(loc='lower right')
-        self.canvas.draw()
+        self.plot_widget.clear()
+
+        max_points = 25000
+        total_points = len(self.logrunavg)
+        step = max(1, total_points // max_points)
+        
+        # Take evenly spaced points
+        subset_indices = slice(0, total_points, step)
+        
+        # Plot the subsets
+        self.plot_widget.plot(
+            self.logrunavg[subset_indices], 
+            pen=None, 
+            symbol='o', 
+            symbolSize=4, 
+            name='Running Average'
+        )
+        self.plot_widget.plot(
+            filtered_values[subset_indices], 
+            pen=None, 
+            symbol='o', 
+            symbolSize=4, 
+            brush='r', 
+            name='Threshold Values'
+        )
+        
+        # Add threshold line
+        self.plot_widget.addLine(
+            y=threshold_value, 
+            pen=pg.mkPen('r', style=QtCore.Qt.PenStyle.DashLine)
+        )
+
+        # Set labels and legend
+        self.plot_widget.setLabel('bottom', 'Photon Event #')
+        self.plot_widget.setLabel('left', 'log(Photon Interval Time)')
+        self.plot_widget.addLegend()
 
     def update_plot(self, value):
         threshold_multiplier = value

@@ -1,6 +1,8 @@
+# File: gui/process_analysis.py
+
 from PyQt6 import QtWidgets, QtCore
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from .widgets import MatplotlibCanvas
+from PyQt6.QtCore import QThread, pyqtSignal
+from .widgets import PlotWidget
 from feda_tools.core import process as proc
 from feda_tools.core import data as dat
 from feda_tools.core import model
@@ -9,7 +11,7 @@ import pandas as pd
 
 class Worker(QtCore.QObject):
     progress_update = pyqtSignal(int)
-    plot_update = pyqtSignal()
+    data_ready = pyqtSignal(list, list, list, list)  # Signal to send data to the main thread
     finished = pyqtSignal()
     error_occurred = pyqtSignal(str)
 
@@ -21,18 +23,11 @@ class Worker(QtCore.QObject):
         self.chunk_size = chunk_size
         self.fit_params = fit_params
         self.update_interval = update_interval
-        self.sg_sr = []
-        self.mean_macro_time = []
-        self.tau_values = []
-        self.r_s_values = []
-        self.is_running = True
-        self.bi4_bur_dfs = []  # List to hold bi4_bur_df for each burst
-        self.bg4_dfs = []      # List to hold bg4_df for each burst
 
     @QtCore.pyqtSlot()
     def run(self):
         try:
-            # Example parameters, adjust as needed
+            # Set initial parameters
             min_photon_count = 60
             bg4_micro_time_min = 0
             bg4_micro_time_max = 12499
@@ -43,11 +38,7 @@ class Worker(QtCore.QObject):
             bg4_bkg_perp = 0
             num_bins = 128
 
-            # Prepare data
-            total_bursts = len(self.burst_index)
-            self.progress_update.emit(0)
-
-            # Initialize fit23 model
+            # Prepare IRF data for Fit23
             counts_irf, _ = np.histogram(self.data_irf.micro_times, bins=num_bins)
             counts_irf_nb = counts_irf.copy()
             counts_irf_nb[0:3] = 0
@@ -58,12 +49,19 @@ class Worker(QtCore.QObject):
                 num_bins, macro_res, counts_irf_nb, g_factor, l1_japan_corr, l2_japan_corr
             )
 
-            # Processing bursts
-            for i, burst in enumerate(self.burst_index, 1):
-                if not self.is_running:
-                    break  # Allow for future extension to stop processing
+            # Prepare data containers
+            sg_sr = []
+            mean_macro_time = []
+            tau_values = []
+            r_s_values = []
+            total_bursts = len(self.burst_index)
 
-                # Process each burst individually
+            # Processing each burst
+            for i, burst in enumerate(self.burst_index, 1):
+                if len(burst) < min_photon_count:
+                    continue
+
+                # Process burst and gather data for plotting
                 bi4_bur_df, bg4_df = proc.process_single_burst(
                     burst,
                     self.data_ptu.macro_times,
@@ -84,39 +82,26 @@ class Worker(QtCore.QObject):
                 )
 
                 if bi4_bur_df is not None and bg4_df is not None:
-                    # Collect dataframes
-                    self.bi4_bur_dfs.append(bi4_bur_df)
-                    self.bg4_dfs.append(bg4_df)
-                    try:
-                        sg_sr_value = bg4_df['Ng-p-all'].values[0] / bg4_df['Ng-s-all'].values[0]
-                        tau_value = bg4_df['Fit tau'].values[0]
-                        r_s_value = bg4_df['Fit rs_scatter'].values[0]
-                        mean_macro = bi4_bur_df['Mean Macro Time (ms)'].values[0]
+                    sg_sr_value = bg4_df['Ng-p-all'].values[0] / bg4_df['Ng-s-all'].values[0]
+                    tau_value = bg4_df['Fit tau'].values[0]
+                    r_s_value = bg4_df['Fit rs_scatter'].values[0]
+                    mean_macro = bi4_bur_df['Mean Macro Time (ms)'].values[0]
 
-                        self.sg_sr.append(sg_sr_value)
-                        self.mean_macro_time.append(mean_macro)
-                        self.tau_values.append(tau_value)
-                        self.r_s_values.append(r_s_value)
-                    except Exception as e:
-                        self.error_occurred.emit(f"Error extracting plot data for burst {i}: {e}")
+                    # Append data to lists
+                    sg_sr.append(sg_sr_value)
+                    mean_macro_time.append(mean_macro)
+                    tau_values.append(tau_value)
+                    r_s_values.append(r_s_value)
 
-                # Update progress bar
-                self.progress_update.emit(i)
+                # Update progress
+                self.progress_update.emit(int(i / total_bursts * 100))
 
-                # Update plots every n bursts
-                if i % self.update_interval == 0:
-                    self.plot_update.emit()
-
-            # Final plot update
-            self.plot_update.emit()
+            # Emit data to the main thread
+            self.data_ready.emit(sg_sr, mean_macro_time, tau_values, r_s_values)
             self.finished.emit()
-
         except Exception as e:
             self.error_occurred.emit(str(e))
             self.finished.emit()
-
-    def stop(self):
-        self.is_running = False
 
 class ProcessAnalysisWindow(QtWidgets.QWidget):
     def __init__(self, data_ptu, data_irf, burst_index, chunk_size, fit_params, output_directory):
@@ -127,17 +112,11 @@ class ProcessAnalysisWindow(QtWidgets.QWidget):
         self.chunk_size = chunk_size
         self.fit_params = fit_params
         self.output_directory = output_directory
-        self.file_ptu = "output.ptu" # Change this later to the actual filename for now it gets a placeholder file_ptu  # Store the PTU file path
+        self.file_ptu = "output.ptu"  # Placeholder for PTU file path
 
         self.init_ui()
         self.thread = None
         self.worker = None
-
-        # Data containers for plots
-        self.sg_sr = []
-        self.mean_macro_time = []
-        self.tau_values = []
-        self.r_s_values = []
 
     def init_ui(self):
         self.setWindowTitle('Full Analysis')
@@ -162,16 +141,15 @@ class ProcessAnalysisWindow(QtWidgets.QWidget):
         self.start_button.clicked.connect(self.run_full_analysis)
         layout.addWidget(self.start_button)
 
-        # Plot area
+        # Plot widgets
         plot_layout = QtWidgets.QHBoxLayout()
-        self.canvas1 = MatplotlibCanvas(self, width=5, height=4, dpi=100)
-        self.canvas2 = MatplotlibCanvas(self, width=5, height=4, dpi=100)
-        self.canvas3 = MatplotlibCanvas(self, width=5, height=4, dpi=100)
+        self.plot_widget1 = PlotWidget()
+        self.plot_widget2 = PlotWidget()
+        self.plot_widget3 = PlotWidget()
 
-        plot_layout.addWidget(self.canvas1)
-        plot_layout.addWidget(self.canvas2)
-        plot_layout.addWidget(self.canvas3)
-
+        plot_layout.addWidget(self.plot_widget1)
+        plot_layout.addWidget(self.plot_widget2)
+        plot_layout.addWidget(self.plot_widget3)
         layout.addLayout(plot_layout)
 
         self.setLayout(layout)
@@ -199,7 +177,7 @@ class ProcessAnalysisWindow(QtWidgets.QWidget):
         # Connect signals and slots
         self.thread.started.connect(self.worker.run)
         self.worker.progress_update.connect(self.update_progress)
-        self.worker.plot_update.connect(self.update_plots)
+        self.worker.data_ready.connect(self.update_plots)
         self.worker.finished.connect(self.analysis_finished)
         self.worker.error_occurred.connect(self.handle_error)
         self.worker.finished.connect(self.thread.quit)
@@ -213,43 +191,37 @@ class ProcessAnalysisWindow(QtWidgets.QWidget):
     def update_progress(self, value):
         self.progress_bar.setValue(value)
 
-    @QtCore.pyqtSlot()
-    def update_plots(self):
+    @QtCore.pyqtSlot(list, list, list, list)
+    def update_plots(self, sg_sr, mean_macro_time, tau_values, r_s_values):
+        # Update the plots with data received from the worker
+
         # sg/sr vs Mean Macro Time
-        self.canvas1.axes.clear()
-        self.canvas1.axes.scatter(self.worker.mean_macro_time, self.worker.sg_sr, s=10, alpha=0.7)
-        self.canvas1.axes.set_xlabel('Mean Macro Time (ms)')
-        self.canvas1.axes.set_ylabel('sg/sr')
-        self.canvas1.axes.set_title('sg/sr vs Mean Macro Time')
-        self.canvas1.axes.grid(True)
-        self.canvas1.draw()
+        self.plot_widget1.clear()
+        self.plot_widget1.plot(mean_macro_time, sg_sr, pen=None, symbol='o', symbolSize=5)
+        self.plot_widget1.setLabel('bottom', 'Mean Macro Time (ms)')
+        self.plot_widget1.setLabel('left', 'sg/sr')
+        self.plot_widget1.setTitle('sg/sr vs Mean Macro Time')
+        self.plot_widget1.showGrid(x=True, y=True)
 
         # sg/sr vs Tau
-        self.canvas2.axes.clear()
-        self.canvas2.axes.scatter(self.worker.tau_values, self.worker.sg_sr, s=10, alpha=0.7, color='green')
-        self.canvas2.axes.set_xlabel('Tau')
-        self.canvas2.axes.set_ylabel('sg/sr')
-        self.canvas2.axes.set_title('sg/sr vs Tau')
-        self.canvas2.axes.grid(True)
-        self.canvas2.draw()
+        self.plot_widget2.clear()
+        self.plot_widget2.plot(tau_values, sg_sr, pen=None, symbol='o', symbolSize=5, brush='g')
+        self.plot_widget2.setLabel('bottom', 'Tau')
+        self.plot_widget2.setLabel('left', 'sg/sr')
+        self.plot_widget2.setTitle('sg/sr vs Tau')
+        self.plot_widget2.showGrid(x=True, y=True)
 
         # r_s vs Tau
-        self.canvas3.axes.clear()
-        self.canvas3.axes.scatter(self.worker.tau_values, self.worker.r_s_values, s=10, alpha=0.7, color='red')
-        self.canvas3.axes.set_xlabel('Tau')
-        self.canvas3.axes.set_ylabel('r_s')
-        self.canvas3.axes.set_title('r_s vs Tau')
-        self.canvas3.axes.grid(True)
-        self.canvas3.draw()
+        self.plot_widget3.clear()
+        self.plot_widget3.plot(tau_values, r_s_values, pen=None, symbol='o', symbolSize=5, brush='r')
+        self.plot_widget3.setLabel('bottom', 'Tau')
+        self.plot_widget3.setLabel('left', 'r_s')
+        self.plot_widget3.setTitle('r_s vs Tau')
+        self.plot_widget3.showGrid(x=True, y=True)
 
     @QtCore.pyqtSlot()
     def analysis_finished(self):
         self.start_button.setEnabled(True)
-        # Combine dataframes
-        bi4_bur_df_combined = pd.concat(self.worker.bi4_bur_dfs, ignore_index=True)
-        bg4_df_combined = pd.concat(self.worker.bg4_dfs, ignore_index=True)
-        # Save results
-        dat.save_results(self.output_directory, self.file_ptu, bi4_bur_df_combined, bg4_df_combined)
         QtWidgets.QMessageBox.information(self, 'Success', 'Full analysis completed successfully.')
 
     @QtCore.pyqtSlot(str)

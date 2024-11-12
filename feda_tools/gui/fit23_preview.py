@@ -1,5 +1,5 @@
 from PyQt6 import QtWidgets, QtCore
-from .widgets import MatplotlibCanvas
+from .widgets import PlotWidget
 from feda_tools.core import model
 import numpy as np
 
@@ -22,9 +22,9 @@ class Fit23PreviewWindow(QtWidgets.QWidget):
         self.setWindowTitle('Fit23 Preview')
         layout = QtWidgets.QVBoxLayout()
 
-        # Matplotlib canvas
-        self.canvas = MatplotlibCanvas(self, width=5, height=4, dpi=100)
-        layout.addWidget(self.canvas)
+        # PyQtGraph plot widget
+        self.plot_widget = PlotWidget()
+        layout.addWidget(self.plot_widget)
 
         # Fit23 Parameters Input
         params_layout = QtWidgets.QFormLayout()
@@ -127,22 +127,18 @@ class Fit23PreviewWindow(QtWidgets.QWidget):
             QtWidgets.QMessageBox.warning(self, 'Fit23 Error', f'An error occurred during Fit23:\n{e}')
             return
 
-        # Plot data and model
-        self.canvas.axes.clear()
-        self.canvas.axes.semilogy(counts / np.max(counts), label='Data')
-        self.canvas.axes.semilogy(counts_irf / np.max(counts_irf), label='IRF')
-        self.canvas.axes.semilogy(self.fit23_model.model / np.max(self.fit23_model.model), label='Model')
+        # Plot data and model using PyQtGraph
+        self.plot_widget.clear()
+        x = np.arange(len(counts))
+        self.plot_widget.plot(x, counts / np.max(counts), pen='b', symbol='o', symbolSize=4, name='Data')
+        self.plot_widget.plot(x, counts_irf / np.max(counts_irf), pen='orange', symbol='t', symbolSize=4, name='IRF')
+        self.plot_widget.plot(x, self.fit23_model.model / np.max(self.fit23_model.model), pen='g', name='Model')
 
-        # Set y-axis limits
-        self.canvas.axes.set_ylim(0.001, 1)
-
-        # Set labels and legend
-        self.canvas.axes.set_ylabel('log(Counts)')
-        self.canvas.axes.set_xlabel('Channel Number')
-        self.canvas.axes.legend()
-
-        # Draw the canvas
-        self.canvas.draw()
+        self.plot_widget.setLogMode(y=True)
+        self.plot_widget.setYRange(np.log10(0.001), np.log10(1))  # Convert to log scale
+        self.plot_widget.setLabel('left', 'log(Counts)')
+        self.plot_widget.setLabel('bottom', 'Channel Number')
+        self.plot_widget.addLegend(offset=(30,30))  # Add offset to make legend visible
     
     def update_preview(self):
         self.plot_fit23()
