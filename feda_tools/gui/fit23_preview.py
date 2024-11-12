@@ -94,7 +94,7 @@ class Fit23PreviewWidget(QtWidgets.QWidget):
                 self.r0_input.value(),
                 self.rho_input.value()
             ])
-
+        
         self.fit23_model = model.setup_fit23(
             num_bins, macro_res, counts_irf_nb, g_factor, l1_japan_corr, l2_japan_corr
         )
@@ -102,7 +102,8 @@ class Fit23PreviewWidget(QtWidgets.QWidget):
         x0 = self.fit_params
         fixed = np.array([0, 0, 1, 0])
         try:
-            r2 = self.fit23_model(data=counts, initial_values=x0, fixed=fixed, include_model=True)
+            norm_counts = counts / np.max(counts)
+            r2 = self.fit23_model(data=norm_counts, initial_values=x0, fixed=fixed, include_model=True)
             self.fit_params = r2['x'][:4]
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, 'Fit23 Error', f'An error occurred during Fit23:\n{e}')
@@ -112,7 +113,7 @@ class Fit23PreviewWidget(QtWidgets.QWidget):
 
         self.plot_widget.clear()
         x = np.arange(len(counts))
-        self.plot_widget.plot(x, counts / np.max(counts), pen='b', symbol='o', symbolSize=4, name='Data')
+        self.plot_widget.plot(x, norm_counts, pen='b', symbol='o', symbolSize=4, name='Data')
         self.plot_widget.plot(x, counts_irf / np.max(counts_irf), pen='orange', symbol='t', symbolSize=4, name='IRF')
         self.plot_widget.plot(x, self.fit23_model.model / np.max(self.fit23_model.model), pen='g', name='Model')
 
