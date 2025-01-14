@@ -1,0 +1,19 @@
+# Default parameters
+# NOTE: This should rarely be edited, this is just for overall
+# project flexibility if for wahtever reason the current method of analysis
+# needs to be overhauled
+min_photon_count: 60
+bg4_micro_time_min: 0
+bg4_micro_time_max: 12499
+g_factor: 1.04
+l1_japan_corr: 0.0308
+l2_japan_corr: 0.0368
+bg4_bkg_para: 0
+bg4_bkg_perp: 0
+num_bins: 128
+window_size: 30
+threshold_multiplier_default: 4
+initial_tau: 3.03
+initial_gamma: 0.02
+initial_r0: 0.38
+initial_rho: 1.64

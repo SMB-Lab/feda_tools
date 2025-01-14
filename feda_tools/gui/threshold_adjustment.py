@@ -1,15 +1,16 @@
 from PyQt6 import QtWidgets, QtCore
-from .widgets import MatplotlibCanvas
+from .widgets import PlotWidget
 from feda_tools.core import analysis as an
 from feda_tools.core import data as dat
 import numpy as np
+import pyqtgraph as pg
 
-class ThresholdAdjustmentWindow(QtWidgets.QWidget):
+class ThresholdAdjustmentWidget(QtWidgets.QWidget):
     threshold_changed = QtCore.pyqtSignal(float)
-    analysis_started = QtCore.pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, state_handler):
         super().__init__()
+        self.state_handler = state_handler
         self.setWindowTitle('Threshold Adjustment')
         self.init_ui()
 
@@ -60,27 +61,26 @@ class ThresholdAdjustmentWindow(QtWidgets.QWidget):
         load_data_button.clicked.connect(self.load_data)
         layout.addWidget(load_data_button)
 
-        # Matplotlib canvas
-        self.canvas = MatplotlibCanvas(self, width=5, height=4, dpi=100)
-        layout.addWidget(self.canvas)
+        # PyQtGraph Plot Widget
+        self.plot_widget = PlotWidget()
+        layout.addWidget(self.plot_widget)
 
         # Threshold slider
         self.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         self.slider.setMinimum(1)
         self.slider.setMaximum(10)
-        self.slider.setValue(4)  # Default threshold multiplier
+        self.slider.setValue(self.state_handler.config.get('threshold_multiplier_default', 4))
         self.slider.valueChanged.connect(self.update_plot)
-        self.slider.setEnabled(False)  # Disabled until data is loaded
+        self.slider.setEnabled(False)
         layout.addWidget(self.slider)
 
         # Threshold label
-        self.label = QtWidgets.QLabel('Threshold: 4 sigma')
+        self.label = QtWidgets.QLabel(f"Threshold: {self.slider.value()} sigma")
         layout.addWidget(self.label)
 
         # Next button
         self.next_button = QtWidgets.QPushButton('Next')
-        self.next_button.clicked.connect(self.start_analysis)
-        self.next_button.setEnabled(False)  # Disabled until data is loaded
+        self.next_button.setEnabled(False)
         layout.addWidget(self.next_button)
 
         self.setLayout(layout)
@@ -124,8 +124,8 @@ class ThresholdAdjustmentWindow(QtWidgets.QWidget):
             return
 
         try:
-            self.chunk_size = int(chunk_size_text)
-            if self.chunk_size <= 0:
+            self.state_handler.chunk_size = int(chunk_size_text)
+            if self.state_handler.chunk_size <= 0:
                 raise ValueError
         except ValueError:
             QtWidgets.QMessageBox.warning(self, 'Error', 'Invalid chunk size. Please enter a positive integer.')
@@ -133,7 +133,11 @@ class ThresholdAdjustmentWindow(QtWidgets.QWidget):
 
         # Load data using core functions
         try:
-            self.data_ptu, self.data_irf, self.data_bkg = dat.load_ptu_files(file_ptu, file_irf, file_bkg)
+            self.state_handler.data_ptu, self.state_handler.data_irf, self.state_handler.data_bkg = dat.load_ptu_files(file_ptu, file_irf, file_bkg)
+            self.state_handler.file_ptu = file_ptu
+            self.state_handler.file_irf = file_irf
+            self.state_handler.file_bkg = file_bkg
+            self.state_handler.output_directory = self.output_dir_input.text()
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, 'Error', f'Failed to load data files:\n{e}')
             return
@@ -146,12 +150,12 @@ class ThresholdAdjustmentWindow(QtWidgets.QWidget):
 
     def prepare_data(self):
         # Extract data
-        all_macro_times = self.data_ptu.macro_times
-        all_micro_times = self.data_ptu.micro_times
+        all_macro_times = self.state_handler.data_ptu.macro_times
+        all_micro_times = self.state_handler.data_ptu.micro_times
 
         # Get resolutions
-        macro_res = self.data_ptu.get_header().macro_time_resolution
-        micro_res = self.data_ptu.get_header().micro_time_resolution
+        macro_res = self.state_handler.data_ptu.get_header().macro_time_resolution
+        micro_res = self.state_handler.data_ptu.get_header().micro_time_resolution
 
         # Calculate interphoton arrival times
         photon_time_intervals, _ = an.interphoton_arrival_times(
@@ -159,43 +163,57 @@ class ThresholdAdjustmentWindow(QtWidgets.QWidget):
         )
 
         # Calculate running average
-        window_size = 30
+        window_size = self.state_handler.config.get('window_size', 30)
         running_avg = an.running_average(photon_time_intervals, window_size)
         self.logrunavg = np.log10(running_avg)
 
         # Estimate background noise
         bins_y = 141
-        self.mu, self.std, _, _, _ = an.estimate_background_noise(self.logrunavg, bins_y)
+        mu, std, _, _, _ = an.estimate_background_noise(self.logrunavg, bins_y)
+
+        self.state_handler.mu = mu
+        self.state_handler.std = std
 
     def plot_data(self, threshold_multiplier):
-        threshold_value = self.mu - threshold_multiplier * self.std
+        threshold_value = self.state_handler.mu - threshold_multiplier * self.state_handler.std
         filtered_values = np.ma.masked_greater(self.logrunavg, threshold_value)
 
-        self.canvas.axes.clear()
-        self.canvas.axes.plot(self.logrunavg, label='Running Average', linestyle='None', marker='o', markersize=2)
-        self.canvas.axes.plot(filtered_values, label='Threshold Values', linestyle='None', marker='.', markersize=2)
-        self.canvas.axes.axhline(y=threshold_value, color='r', linestyle='--', label=f'Threshold ({threshold_multiplier}σ)')
-        self.canvas.axes.set_xlabel('Photon Event #')
-        self.canvas.axes.set_ylabel('log(Photon Interval Time)')
-        self.canvas.axes.legend(loc='lower right')
-        self.canvas.draw()
+        self.plot_widget.clear()
+
+        max_points = 25000
+        total_points = len(self.logrunavg)
+        step = max(1, total_points // max_points)
+        
+        subset_indices = slice(0, total_points, step)
+        
+        self.plot_widget.plot(
+            self.logrunavg[subset_indices], 
+            pen=None, 
+            symbol='o', 
+            symbolSize=4, 
+            name='Running Average'
+        )
+        self.plot_widget.plot(
+            filtered_values[subset_indices], 
+            pen=None, 
+            symbol='o', 
+            symbolSize=4, 
+            brush='r', 
+            name='Threshold Values'
+        )
+        
+        self.plot_widget.addLine(
+            y=threshold_value, 
+            pen=pg.mkPen('r', style=QtCore.Qt.PenStyle.DashLine)
+        )
+
+        self.plot_widget.setLabel('bottom', 'Photon Event #')
+        self.plot_widget.setLabel('left', 'log(Photon Interval Time)')
+        self.plot_widget.addLegend()
 
     def update_plot(self, value):
         threshold_multiplier = value
         self.label.setText(f'Threshold: {threshold_multiplier} sigma')
         self.plot_data(threshold_multiplier)
         self.threshold_changed.emit(threshold_multiplier)
-
-    def start_analysis(self):
-        # Proceed to Fit23 preview
-        threshold_multiplier = self.slider.value()
-        threshold_value = self.mu - threshold_multiplier * self.std
-        burst_index, _ = dat.extract_greater(self.logrunavg, threshold_value)
-
-        # Extract the entire chunk data
-        from .fit23_preview import Fit23PreviewWindow
-
-        self.fit23_window = Fit23PreviewWindow(
-            self.data_ptu, self.data_irf, burst_index, self.chunk_size, self.output_dir_input.text()
-        )
-        self.fit23_window.show()
+        self.state_handler.threshold_multiplier = threshold_multiplier
