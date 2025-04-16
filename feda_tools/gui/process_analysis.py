@@ -144,12 +144,12 @@ class ProcessAnalysisWidget(QtWidgets.QWidget):
         # Plot widgets
         plot_layout = QtWidgets.QHBoxLayout()
         self.plot_widget1 = PlotWidget()
-        self.plot_widget2 = PlotWidget()
-        self.plot_widget3 = PlotWidget()
+        # self.plot_widget2 = PlotWidget()
+        # self.plot_widget3 = PlotWidget()
 
         plot_layout.addWidget(self.plot_widget1)
-        plot_layout.addWidget(self.plot_widget2)
-        plot_layout.addWidget(self.plot_widget3)
+        # plot_layout.addWidget(self.plot_widget2)
+        # plot_layout.addWidget(self.plot_widget3)
         layout.addLayout(plot_layout)
 
         self.setLayout(layout)
@@ -207,8 +207,8 @@ class ProcessAnalysisWidget(QtWidgets.QWidget):
     def update_progress(self, value):
         self.progress_bar.setValue(value)
 
-    @QtCore.pyqtSlot(list, list, list, list)
-    def update_plots(self, sg_sr, mean_macro_time, tau_values, r_s_values):
+    @QtCore.pyqtSlot(list, list)
+    def update_plots(self, sg_sr, mean_macro_time):
         self.plot_widget1.clear()
         self.plot_widget1.plot(mean_macro_time, sg_sr, pen=None, symbol='o', symbolSize=5)
         self.plot_widget1.setLabel('bottom', 'Mean Macro Time (ms)')
