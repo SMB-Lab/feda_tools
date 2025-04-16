@@ -103,7 +103,7 @@ class Fit23PreviewWidget(QtWidgets.QWidget):
         fixed = np.array([0, 0, 1, 0])
         try:
             norm_counts = counts / np.max(counts)
-            r2 = self.fit23_model(data=norm_counts, initial_values=x0, fixed=fixed, include_model=True)
+            r2 = self.fit23_model(data=counts, initial_values=x0, fixed=fixed, include_model=True)
             self.fit_params = r2['x'][:4]
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, 'Fit23 Error', f'An error occurred during Fit23:\n{e}')

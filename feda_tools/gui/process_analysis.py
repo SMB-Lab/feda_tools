@@ -10,7 +10,7 @@ import pandas as pd
 
 class Worker(QtCore.QObject):
     progress_update = pyqtSignal(int)
-    data_ready = pyqtSignal(list, list, list, list)
+    data_ready = pyqtSignal(list, list)
     finished = pyqtSignal()
     error_occurred = pyqtSignal(str)
 
@@ -79,15 +79,16 @@ class Worker(QtCore.QObject):
                 )
 
                 if bi4_bur_df is not None and bg4_df is not None:
-                    sg_sr_value = bg4_df['Ng-p-all'].values[0] / bg4_df['Ng-s-all'].values[0]
-                    tau_value = bg4_df['Fit tau'].values[0]
-                    r_s_value = bg4_df['Fit rs_scatter'].values[0]
+                    sg_sr_value = bg4_df['Number of Photons (green)'].values[0] / bg4_df['Duration (green) (ms)'].values[0]
                     mean_macro = bi4_bur_df['Mean Macro Time (ms)'].values[0]
+                    
+                    # tau_value = bg4_df['Fit tau'].values[0]
+                    # r_s_value = bg4_df['Fit rs_scatter'].values[0]
 
                     sg_sr.append(sg_sr_value)
                     mean_macro_time.append(mean_macro)
-                    tau_values.append(tau_value)
-                    r_s_values.append(r_s_value)
+                    # tau_values.append(tau_value)
+                    # r_s_values.append(r_s_value)
 
                     all_bi4_bur_df.append(bi4_bur_df)
                     all_bg4_df.append(bg4_df)
@@ -95,7 +96,7 @@ class Worker(QtCore.QObject):
                 if i % self.update_interval == 0 or i == total_bursts:
                     self.progress_update.emit(int(i / total_bursts * 100))
 
-            self.data_ready.emit(sg_sr, mean_macro_time, tau_values, r_s_values)
+            self.data_ready.emit(sg_sr, mean_macro_time)
 
             bi4_bur_df_combined = pd.concat(all_bi4_bur_df, ignore_index=True)
             bg4_df_combined = pd.concat(all_bg4_df, ignore_index=True)
@@ -215,19 +216,19 @@ class ProcessAnalysisWidget(QtWidgets.QWidget):
         self.plot_widget1.setTitle('sg/sr vs Mean Macro Time')
         self.plot_widget1.showGrid(x=True, y=True)
 
-        self.plot_widget2.clear()
-        self.plot_widget2.plot(tau_values, sg_sr, pen=None, symbol='o', symbolSize=5, brush='g')
-        self.plot_widget2.setLabel('bottom', 'Tau')
-        self.plot_widget2.setLabel('left', 'sg/sr')
-        self.plot_widget2.setTitle('sg/sr vs Tau')
-        self.plot_widget2.showGrid(x=True, y=True)
+        # self.plot_widget2.clear()
+        # self.plot_widget2.plot(tau_values, sg_sr, pen=None, symbol='o', symbolSize=5, brush='g')
+        # self.plot_widget2.setLabel('bottom', 'Tau')
+        # self.plot_widget2.setLabel('left', 'sg/sr')
+        # self.plot_widget2.setTitle('sg/sr vs Tau')
+        # self.plot_widget2.showGrid(x=True, y=True)
 
-        self.plot_widget3.clear()
-        self.plot_widget3.plot(tau_values, r_s_values, pen=None, symbol='o', symbolSize=5, brush='r')
-        self.plot_widget3.setLabel('bottom', 'Tau')
-        self.plot_widget3.setLabel('left', 'r_s')
-        self.plot_widget3.setTitle('r_s vs Tau')
-        self.plot_widget3.showGrid(x=True, y=True)
+        # self.plot_widget3.clear()
+        # self.plot_widget3.plot(tau_values, r_s_values, pen=None, symbol='o', symbolSize=5, brush='r')
+        # self.plot_widget3.setLabel('bottom', 'Tau')
+        # self.plot_widget3.setLabel('left', 'r_s')
+        # self.plot_widget3.setTitle('r_s vs Tau')
+        # self.plot_widget3.showGrid(x=True, y=True)
 
     @QtCore.pyqtSlot()
     def analysis_finished(self):
