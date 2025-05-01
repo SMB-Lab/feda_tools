@@ -10,25 +10,24 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox, QFormLayout, QStatusBar
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSlot
+from sklearn.linear_model import LinearRegression # Needed for fit line calculation
 
 # Import the worker from the sibling module
 try:
     from .worker import Worker
 except ImportError:
-    # Fallback for running script directly
     from worker import Worker
 
 # Assuming the core module is importable
 try:
-    # Try relative import first
     from ..core.outlier_detection import (
         load_burst_data,
         detect_time_difference_outliers,
-        detect_linear_projection_outliers,
-        detect_linear_residual_outliers
+        detect_linear_projection_outliers, # Keep for now, might be useful later?
+        detect_linear_residual_outliers,
+        calculate_sg_sr
     )
 except ImportError:
-    # Fallback for development
     import sys
     script_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(os.path.dirname(script_dir))
@@ -39,15 +38,17 @@ except ImportError:
             load_burst_data,
             detect_time_difference_outliers,
             detect_linear_projection_outliers,
-            detect_linear_residual_outliers
+            detect_linear_residual_outliers,
+            calculate_sg_sr
         )
     except ImportError as e:
         print(f"Error importing outlier_detection: {e}. Using dummy functions.")
         # Dummy functions
-        def load_burst_data(*args, **kwargs): return (pd.DataFrame({'time_diff': [], 'n_sum_g': [], 'n_sum_r': [], 'linear_resid': []}), pd.DataFrame(), pd.DataFrame())
+        def load_burst_data(*args, **kwargs): return (pd.DataFrame({'time_diff': [], 'Duration (ms)': [], 'Number of Photons': [], 'linear_resid': [], 'Mean Macro Time (ms)': []}), pd.DataFrame(), pd.DataFrame())
         def detect_time_difference_outliers(*args, **kwargs): return pd.Series(dtype=bool)
         def detect_linear_projection_outliers(*args, **kwargs): return pd.Series(dtype=bool)
         def detect_linear_residual_outliers(*args, **kwargs): return pd.Series(dtype=bool)
+        def calculate_sg_sr(*args, **kwargs): return pd.Series(dtype=float)
 
 
 # Configure pyqtgraph
@@ -58,8 +59,8 @@ pg.setConfigOption('foreground', 'k')
 class OutlierMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("FEDA Tools - Interactive Outlier Detection & Batch Processing")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setWindowTitle("FEDA Tools - Outlier Detection")
+        self.setGeometry(100, 100, 1400, 850) # Adjusted size
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -67,7 +68,7 @@ class OutlierMainWindow(QMainWindow):
 
         # Data storage
         self.preview_bur_df = None
-        self.current_processing_bur_df = None # Holds data for live plot updates during run
+        self.current_processing_bur_df = None
         self.input_dir = None
         self.output_dir = None
 
@@ -82,7 +83,7 @@ class OutlierMainWindow(QMainWindow):
         self._create_widgets()
         self._create_layouts()
         self._connect_signals()
-        self._initialize_plots()
+        self._initialize_plots() # Initialize plots before connecting signals that might use them
 
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
@@ -109,38 +110,34 @@ class OutlierMainWindow(QMainWindow):
         self.time_cutoff_spin.setSingleStep(0.1)
         self.time_cutoff_spin.setToolTip("Z-score cutoff for time difference.")
 
-        self.proj_cutoff_spin = QDoubleSpinBox()
-        self.proj_cutoff_spin.setRange(0.0, 100.0)
-        self.proj_cutoff_spin.setValue(3.0)
-        self.proj_cutoff_spin.setDecimals(2)
-        self.proj_cutoff_spin.setSingleStep(0.1)
-        self.proj_cutoff_spin.setToolTip("Z-score cutoff for linear projection distance.")
-
+        # Rename for clarity based on new plot
         self.resid_cutoff_spin = QDoubleSpinBox()
         self.resid_cutoff_spin.setRange(0.0, 100.0)
         self.resid_cutoff_spin.setValue(3.0)
         self.resid_cutoff_spin.setDecimals(2)
         self.resid_cutoff_spin.setSingleStep(0.1)
-        self.resid_cutoff_spin.setToolTip("Z-score cutoff for linear fit residuals.")
+        self.resid_cutoff_spin.setToolTip("Z-score cutoff for linear fit residuals (Duration vs Photons).")
+
+        # Keep proj cutoff for now, even if not plotted directly, worker uses it
+        self.proj_cutoff_spin = QDoubleSpinBox()
+        self.proj_cutoff_spin.setRange(0.0, 100.0)
+        self.proj_cutoff_spin.setValue(3.0)
+        self.proj_cutoff_spin.setDecimals(2)
+        self.proj_cutoff_spin.setSingleStep(0.1)
+        self.proj_cutoff_spin.setToolTip("Z-score cutoff for linear projection distance (n_sum_g vs n_sum_r). Not plotted.")
+
 
         # Run/Pause/Resume Button
         self.run_pause_button = QPushButton("Run Processing")
 
-        # Plot Widgets
-        self.time_plot_widget = pg.PlotWidget(name="TimeDiffPlot")
-        self.proj_plot_widget = pg.PlotWidget(name="ProjectionPlot")
-        self.resid_plot_widget = pg.PlotWidget(name="ResidualPlot")
+        # Plot Widgets - Renamed for clarity
+        self.time_diff_hist_widget = pg.PlotWidget(name="TimeDiffHist")
+        self.linear_fit_scatter_widget = pg.PlotWidget(name="LinearFitScatter")
+        self.sg_sr_scatter_widget = pg.PlotWidget(name="SgSrScatter")
 
-        # Status Display (Optional - can use status bar mainly)
-        # self.status_display = QTextEdit()
-        # self.status_display.setReadOnly(True)
-        # self.status_display.setFixedHeight(100) # Limit height
 
     def _create_layouts(self):
-        # Top Controls Layout
         top_controls_layout = QHBoxLayout()
-
-        # Directory Selection
         dir_select_layout = QGridLayout()
         dir_select_layout.addWidget(self.input_dir_label, 0, 0)
         dir_select_layout.addWidget(self.input_dir_edit, 0, 1)
@@ -148,62 +145,69 @@ class OutlierMainWindow(QMainWindow):
         dir_select_layout.addWidget(self.output_dir_label, 1, 0)
         dir_select_layout.addWidget(self.output_dir_edit, 1, 1)
         dir_select_layout.addWidget(self.output_dir_button, 1, 2)
-        top_controls_layout.addLayout(dir_select_layout, 2) # Stretch factor 2
+        top_controls_layout.addLayout(dir_select_layout, 2)
 
-        # Parameters
         param_layout = QFormLayout()
         param_layout.addRow("Time Diff Z-Cutoff:", self.time_cutoff_spin)
-        param_layout.addRow("Projection Z-Cutoff:", self.proj_cutoff_spin)
         param_layout.addRow("Residual Z-Cutoff:", self.resid_cutoff_spin)
-        top_controls_layout.addLayout(param_layout, 1) # Stretch factor 1
+        param_layout.addRow("Projection Z-Cutoff (Not Plotted):", self.proj_cutoff_spin) # Keep control
+        top_controls_layout.addLayout(param_layout, 1)
 
-        # Run Button
         run_button_layout = QVBoxLayout()
         run_button_layout.addWidget(self.run_pause_button)
         run_button_layout.addStretch()
         top_controls_layout.addLayout(run_button_layout)
 
-
-        # Plots Layout
         plots_layout = QGridLayout()
-        plots_layout.addWidget(self.time_plot_widget, 0, 0)
-        plots_layout.addWidget(self.proj_plot_widget, 0, 1)
-        plots_layout.addWidget(self.resid_plot_widget, 1, 0, 1, 2)
+        plots_layout.addWidget(self.time_diff_hist_widget, 0, 0)
+        plots_layout.addWidget(self.linear_fit_scatter_widget, 0, 1)
+        plots_layout.addWidget(self.sg_sr_scatter_widget, 1, 0, 1, 2)
 
-        # Main Layout
         self.layout.addLayout(top_controls_layout)
         self.layout.addLayout(plots_layout)
-        # self.layout.addWidget(self.status_display) # Optional status box
-        self.layout.setStretchFactor(plots_layout, 1) # Give plots more space
+        self.layout.setStretchFactor(plots_layout, 1)
 
     def _initialize_plots(self):
-        # Time Difference Plot
-        self.time_plot_widget.setLabel('left', 'Time Difference')
-        self.time_plot_widget.setLabel('bottom', 'Burst Index')
-        self.time_plot_widget.setTitle('Time Difference Outliers (Preview)')
-        self.time_plot_all_scatter = pg.ScatterPlotItem(pen=pg.mkPen(None), brush=pg.mkBrush(0, 0, 200, 150), size=5, name='Included')
-        self.time_plot_outlier_scatter = pg.ScatterPlotItem(pen=pg.mkPen('r'), brush=pg.mkBrush(255, 0, 0, 200), size=7, symbol='x', name='Outlier')
-        self.time_plot_widget.addItem(self.time_plot_all_scatter)
-        self.time_plot_widget.addItem(self.time_plot_outlier_scatter)
-        self.time_plot_widget.addLegend()
+        # Plot 1: Time Difference Histogram
+        self.time_diff_hist_widget.setLabel('left', 'Frequency')
+        self.time_diff_hist_widget.setLabel('bottom', 'Time Difference (Duration Green - Yellow)')
+        self.time_diff_hist_widget.setTitle('Time Difference Distribution (Preview)')
+        self.time_diff_hist_item = pg.BarGraphItem(x=[], height=[], width=1, brush='b', name='Frequency')
+        self.time_diff_hist_widget.addItem(self.time_diff_hist_item)
+        # Add lines for cutoffs
+        self.time_diff_cutoff_line_upper = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen('r', style=Qt.PenStyle.DashLine))
+        self.time_diff_cutoff_line_lower = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen('r', style=Qt.PenStyle.DashLine))
+        self.time_diff_hist_widget.addItem(self.time_diff_cutoff_line_upper)
+        self.time_diff_hist_widget.addItem(self.time_diff_cutoff_line_lower)
+        # self.time_diff_hist_widget.addLegend() # Legend not typical for histogram + lines
 
-        # Projection Plot
-        self.proj_plot_widget.setLabel('left', 'n_sum_g')
-        self.proj_plot_widget.setLabel('bottom', 'n_sum_r')
-        self.proj_plot_widget.setTitle('Linear Projection Outliers (Preview)')
-        self.proj_plot_all_scatter = pg.ScatterPlotItem(pen=pg.mkPen(None), brush=pg.mkBrush(0, 200, 0, 150), size=5, name='Included')
-        self.proj_plot_outlier_scatter = pg.ScatterPlotItem(pen=pg.mkPen('r'), brush=pg.mkBrush(255, 0, 0, 200), size=7, symbol='x', name='Outlier')
-        self.proj_plot_widget.addItem(self.proj_plot_all_scatter)
-        self.proj_plot_widget.addItem(self.proj_plot_outlier_scatter)
-        self.proj_plot_widget.addLegend()
+        # Plot 2: Linear Fit (Duration vs Photons) Scatter + Bands
+        self.linear_fit_scatter_widget.setLabel('left', 'Number of Photons')
+        self.linear_fit_scatter_widget.setLabel('bottom', 'Duration (ms)')
+        self.linear_fit_scatter_widget.setTitle('Linear Fit: Duration vs Photons (Preview)')
+        self.linear_fit_scatter_all = pg.ScatterPlotItem(pen=pg.mkPen(None), brush=pg.mkBrush(0, 0, 200, 150), size=5, name='Included')
+        self.linear_fit_scatter_outliers = pg.ScatterPlotItem(pen=pg.mkPen('r'), brush=pg.mkBrush(255, 0, 0, 200), size=7, symbol='x', name='Residual Outlier')
+        self.linear_fit_line = pg.PlotCurveItem(pen=pg.mkPen('g', width=2), name='Linear Fit')
+        self.linear_fit_band_upper = pg.PlotCurveItem(pen=pg.mkPen('k', style=Qt.PenStyle.DashLine), name='+Z Residual Cutoff')
+        self.linear_fit_band_lower = pg.PlotCurveItem(pen=pg.mkPen('k', style=Qt.PenStyle.DashLine), name='-Z Residual Cutoff')
+        self.linear_fit_scatter_widget.addItem(self.linear_fit_scatter_all)
+        self.linear_fit_scatter_widget.addItem(self.linear_fit_scatter_outliers)
+        self.linear_fit_scatter_widget.addItem(self.linear_fit_line)
+        self.linear_fit_scatter_widget.addItem(self.linear_fit_band_upper)
+        self.linear_fit_scatter_widget.addItem(self.linear_fit_band_lower)
+        self.linear_fit_scatter_widget.addLegend()
 
-        # Residual Plot (Histogram)
-        self.resid_plot_widget.setLabel('left', 'Count')
-        self.resid_plot_widget.setLabel('bottom', 'Linear Residual Value')
-        self.resid_plot_widget.setTitle('Linear Residual Outliers (Preview)')
-        self.resid_hist_all = None
-        self.resid_hist_outliers = None
-        self.resid_plot_widget.addLegend()
+        # Plot 3: Sg/Sr vs Macro Time Scatter
+        self.sg_sr_scatter_widget.setLabel('left', 'Sg/Sr')
+        self.sg_sr_scatter_widget.setLabel('bottom', 'Mean Macro Time (ms)')
+        self.sg_sr_scatter_widget.setTitle('Sg/Sr vs Macro Time (Preview)')
+        self.sg_sr_scatter_widget.setLogMode(y=True)
+        self.sg_sr_scatter_included = pg.ScatterPlotItem(pen=pg.mkPen(None), brush=pg.mkBrush(128, 0, 128, 150), size=5, name='Included (Combined Filter)') # Purple
+        self.sg_sr_scatter_outliers = pg.ScatterPlotItem(pen=pg.mkPen('r'), brush=pg.mkBrush(255, 0, 0, 200), size=7, symbol='o', name='Outlier (Combined Filter)') # Red circle
+        self.sg_sr_scatter_widget.addItem(self.sg_sr_scatter_included)
+        self.sg_sr_scatter_widget.addItem(self.sg_sr_scatter_outliers)
+        self.sg_sr_scatter_widget.addLegend()
+
 
     def _connect_signals(self):
         self.input_dir_button.clicked.connect(self.select_input_dir)
@@ -211,9 +215,10 @@ class OutlierMainWindow(QMainWindow):
         self.run_pause_button.clicked.connect(self.handle_run_pause_resume)
         # Update preview plots when parameters change IF NOT running
         self.time_cutoff_spin.valueChanged.connect(lambda: self.update_preview_plots() if not self.is_running else None)
-        self.proj_cutoff_spin.valueChanged.connect(lambda: self.update_preview_plots() if not self.is_running else None)
         self.resid_cutoff_spin.valueChanged.connect(lambda: self.update_preview_plots() if not self.is_running else None)
+        # Proj cutoff doesn't directly affect plots, no need to connect its valueChanged to preview update
 
+    # --- Directory Selection & Preview Loading ---
     def select_input_dir(self):
         directory = QFileDialog.getExistingDirectory(self, "Select Input Directory")
         if directory:
@@ -231,17 +236,15 @@ class OutlierMainWindow(QMainWindow):
             self.status_bar.showMessage(f"Output directory set: {directory}")
 
     def load_preview_data(self):
-        self.preview_bur_df = None # Clear previous preview
-        self.clear_plots("Preview") # Clear plots before loading new preview
+        self.preview_bur_df = None
+        self.clear_all_plots("Preview")
         if not self.input_dir:
             self.status_bar.showMessage("Select an input directory first.")
             return
 
         try:
-            # Find the first .bur file recursively
             search_pattern = os.path.join(self.input_dir, '**', 'bi4_bur', '*.bur')
             preview_files = sorted(glob.glob(search_pattern, recursive=True))
-
             if not preview_files:
                 self.log_error(f"No .bur files found for preview in {self.input_dir}")
                 return
@@ -253,8 +256,7 @@ class OutlierMainWindow(QMainWindow):
             self.status_bar.showMessage(f"Loading preview: {os.path.basename(first_file)}...")
             QApplication.processEvents()
 
-            # Load data using the core function
-            self.preview_bur_df, _, _ = load_burst_data(base_path, split_name) # Ignore red/green for preview plot
+            self.preview_bur_df, _, _ = load_burst_data(base_path, split_name)
 
             if self.preview_bur_df is None or self.preview_bur_df.empty:
                 self.log_error(f"Failed to load or empty preview data for {split_name}")
@@ -262,181 +264,207 @@ class OutlierMainWindow(QMainWindow):
                 return
 
             self.status_bar.showMessage(f"Preview loaded ({os.path.basename(first_file)}). Adjust parameters or run processing.")
-            self.update_preview_plots() # Update plots with loaded preview data
+            self.update_preview_plots()
 
         except Exception as e:
             self.log_error(f"Error loading preview data: {e}")
             self.preview_bur_df = None
-            self.clear_plots("Preview")
+            self.clear_all_plots("Preview")
+
+    # --- Plotting Logic ---
 
     def update_preview_plots(self):
         """Updates plots using self.preview_bur_df and current spinbox values."""
         if self.preview_bur_df is None or self.preview_bur_df.empty:
-            # self.clear_plots("Preview") # Don't clear if just parameters changed without data
             return
 
         time_cutoff = self.time_cutoff_spin.value()
-        proj_cutoff = self.proj_cutoff_spin.value()
         resid_cutoff = self.resid_cutoff_spin.value()
+        # Proj cutoff is read but not used directly in these plots
+        proj_cutoff = self.proj_cutoff_spin.value()
 
         try:
+            # Run detection needed for plotting
             time_outliers = detect_time_difference_outliers(self.preview_bur_df, time_cutoff)
-            proj_outliers = detect_linear_projection_outliers(self.preview_bur_df, proj_cutoff)
             resid_outliers = detect_linear_residual_outliers(self.preview_bur_df, resid_cutoff)
+            # We need Sg/Sr for the third plot
+            sg_sr = calculate_sg_sr(self.preview_bur_df)
 
-            self._update_plot_data(self.preview_bur_df, time_outliers, proj_outliers, resid_outliers, "Preview")
-            # self.status_bar.showMessage("Preview plots updated.") # Can be noisy
+            self._update_plot_data(self.preview_bur_df, sg_sr, time_outliers, resid_outliers, "Preview")
 
         except Exception as e:
             self.log_error(f"Error updating preview plots: {e}")
-            # Optionally clear plots on error during update
-            # self.clear_plots("Preview")
+
+
+    def _update_plot_data(self, bur_df, sg_sr_series, time_outliers, resid_outliers, mode="Preview"):
+        """Helper function to update all plots with new data and outlier masks."""
+        if bur_df is None or bur_df.empty:
+            self.clear_all_plots(mode)
+            return
+
+        title_suffix = f"({mode})"
+        time_cutoff = self.time_cutoff_spin.value()
+        resid_cutoff = self.resid_cutoff_spin.value()
+
+        # --- Plot 1: Time Difference Histogram ---
+        self.time_diff_hist_widget.setTitle(f'Time Difference Distribution {title_suffix}')
+        if 'time_diff' in bur_df.columns:
+            time_diff_vals = bur_df['time_diff'].dropna()
+            if not time_diff_vals.empty:
+                mean_diff = time_diff_vals.mean()
+                std_diff = time_diff_vals.std()
+                upper_thresh = mean_diff + time_cutoff * std_diff
+                lower_thresh = mean_diff - time_cutoff * std_diff
+
+                y, x = np.histogram(time_diff_vals, bins='auto')
+                self.time_diff_hist_item.setOpts(x=x[:-1], height=y, width=(x[1]-x[0])*0.9)
+                self.time_diff_cutoff_line_upper.setPos(upper_thresh)
+                self.time_diff_cutoff_line_lower.setPos(lower_thresh)
+                self.time_diff_cutoff_line_upper.setVisible(True)
+                self.time_diff_cutoff_line_lower.setVisible(True)
+            else:
+                self.time_diff_hist_item.setOpts(x=[], height=[])
+                self.time_diff_cutoff_line_upper.setVisible(False)
+                self.time_diff_cutoff_line_lower.setVisible(False)
+        else:
+            self.time_diff_hist_item.setOpts(x=[], height=[])
+            self.time_diff_cutoff_line_upper.setVisible(False)
+            self.time_diff_cutoff_line_lower.setVisible(False)
+            self.time_diff_hist_widget.setTitle(f'Time Difference (Column Missing) {title_suffix}')
+
+        # --- Plot 2: Linear Fit (Duration vs Photons) ---
+        self.linear_fit_scatter_widget.setTitle(f'Linear Fit: Duration vs Photons {title_suffix}')
+        required_cols_fit = ['Duration (ms)', 'Number of Photons', 'linear_resid']
+        if all(col in bur_df.columns for col in required_cols_fit):
+            fit_data = bur_df[required_cols_fit].dropna()
+            if len(fit_data) >= 2:
+                x_fit = fit_data['Duration (ms)'].values.reshape(-1, 1)
+                y_fit_data = fit_data['Number of Photons'].values
+                residuals = fit_data['linear_resid'].values
+
+                # Recalculate fit line
+                model = LinearRegression()
+                model.fit(x_fit, y_fit_data)
+                slope = model.coef_[0]
+                intercept = model.intercept_
+
+                # Calculate residual std dev for bands
+                std_resid = residuals.std()
+                upper_band_val = resid_cutoff * std_resid
+                lower_band_val = -resid_cutoff * std_resid
+
+                # Generate points for lines
+                x_line = np.array([fit_data['Duration (ms)'].min(), fit_data['Duration (ms)'].max()])
+                y_line = model.predict(x_line.reshape(-1, 1))
+                y_upper_band = y_line + upper_band_val
+                y_lower_band = y_line + lower_band_val
+
+                # Update plot items
+                self.linear_fit_line.setData(x_line, y_line)
+                self.linear_fit_band_upper.setData(x_line, y_upper_band)
+                self.linear_fit_band_lower.setData(x_line, y_lower_band)
+
+                # Update scatter plots (use original df index for outlier mask)
+                all_scatter_data = [{'pos': (x, y), 'data': 1} for x, y in zip(bur_df['Duration (ms)'], bur_df['Number of Photons'])]
+                outlier_scatter_data = [{'pos': (x, y), 'data': 1} for x, y in zip(bur_df.loc[resid_outliers, 'Duration (ms)'], bur_df.loc[resid_outliers, 'Number of Photons'])]
+                self.linear_fit_scatter_all.setData(all_scatter_data)
+                self.linear_fit_scatter_outliers.setData(outlier_scatter_data)
+
+                self.linear_fit_line.setVisible(True)
+                self.linear_fit_band_upper.setVisible(True)
+                self.linear_fit_band_lower.setVisible(True)
+
+            else: # Not enough data for fit
+                self.clear_linear_fit_plot()
+        else: # Missing columns
+            self.clear_linear_fit_plot()
+            self.linear_fit_scatter_widget.setTitle(f'Linear Fit (Columns Missing) {title_suffix}')
+
+
+        # --- Plot 3: Sg/Sr vs Macro Time ---
+        self.sg_sr_scatter_widget.setTitle(f'Sg/Sr vs Macro Time {title_suffix}')
+        required_cols_sgsr = ['Mean Macro Time (ms)']
+        if all(col in bur_df.columns for col in required_cols_sgsr) and sg_sr_series is not None:
+            sgsr_data = pd.DataFrame({'macro_time': bur_df['Mean Macro Time (ms)'], 'sgsr': sg_sr_series}).dropna()
+            if not sgsr_data.empty:
+                # Combine outlier masks (True if outlier in EITHER time OR residual)
+                combined_outliers = time_outliers | resid_outliers
+                # Align combined mask with sgsr_data index
+                aligned_outliers = combined_outliers.reindex(sgsr_data.index).fillna(False)
+
+                included_mask = ~aligned_outliers
+                outlier_mask = aligned_outliers
+
+                included_scatter_data = [{'pos': (mt, sgsr), 'data': 1} for mt, sgsr in zip(sgsr_data.loc[included_mask, 'macro_time'], sgsr_data.loc[included_mask, 'sgsr'])]
+                outlier_scatter_data = [{'pos': (mt, sgsr), 'data': 1} for mt, sgsr in zip(sgsr_data.loc[outlier_mask, 'macro_time'], sgsr_data.loc[outlier_mask, 'sgsr'])]
+
+                self.sg_sr_scatter_included.setData(included_scatter_data)
+                self.sg_sr_scatter_outliers.setData(outlier_scatter_data)
+            else:
+                self.clear_sgsr_plot()
+        else:
+            self.clear_sgsr_plot()
+            self.sg_sr_scatter_widget.setTitle(f'Sg/Sr vs Macro Time (Columns Missing) {title_suffix}')
+
+
+    def clear_all_plots(self, mode="Preview"):
+        """Clears all plot data and resets titles."""
+        self.clear_time_diff_plot(mode)
+        self.clear_linear_fit_plot(mode)
+        self.clear_sgsr_plot(mode)
+
+    def clear_time_diff_plot(self, mode="Preview"):
+        title_suffix = f"({mode})"
+        self.time_diff_hist_item.setOpts(x=[], height=[])
+        self.time_diff_cutoff_line_upper.setVisible(False)
+        self.time_diff_cutoff_line_lower.setVisible(False)
+        self.time_diff_hist_widget.setTitle(f'Time Difference Distribution {title_suffix}')
+
+    def clear_linear_fit_plot(self, mode="Preview"):
+        title_suffix = f"({mode})"
+        self.linear_fit_scatter_all.clear()
+        self.linear_fit_scatter_outliers.clear()
+        self.linear_fit_line.clear(); self.linear_fit_line.setVisible(False)
+        self.linear_fit_band_upper.clear(); self.linear_fit_band_upper.setVisible(False)
+        self.linear_fit_band_lower.clear(); self.linear_fit_band_lower.setVisible(False)
+        self.linear_fit_scatter_widget.setTitle(f'Linear Fit: Duration vs Photons {title_suffix}')
+
+    def clear_sgsr_plot(self, mode="Preview"):
+        title_suffix = f"({mode})"
+        self.sg_sr_scatter_included.clear()
+        self.sg_sr_scatter_outliers.clear()
+        self.sg_sr_scatter_widget.setTitle(f'Sg/Sr vs Macro Time {title_suffix}')
+
+
+    # --- Worker Interaction and Control ---
 
     @pyqtSlot(str, pd.DataFrame)
     def on_worker_processing_file(self, filepath, bur_df):
-        """Slot for worker signal: stores current data for live plotting."""
-        self.current_processing_bur_df = bur_df # Store the data
+        """Stores current data for live plotting (outliers plotted in next step)."""
+        self.current_processing_bur_df = bur_df
         self.status_bar.showMessage(f"Processing: {os.path.basename(filepath)}")
-        # Clear previous outliers before showing new data points
-        self.clear_plots(f"Processing: {os.path.basename(filepath)}")
-        # Plot all points of the new file immediately
-        self._plot_all_points(bur_df)
-
+        # Clear previous plot data before showing new file's data
+        self.clear_all_plots(f"Live: {os.path.basename(filepath)}")
+        # Plotting happens when outliers are detected
 
     @pyqtSlot(pd.Series, pd.Series, pd.Series)
     def on_worker_outliers_detected(self, time_mask, proj_mask, resid_mask):
-        """Slot for worker signal: updates plots with detected outliers for the current file."""
+        """Updates plots with detected outliers for the current file."""
         if self.current_processing_bur_df is not None:
-            self._update_plot_data(self.current_processing_bur_df, time_mask, proj_mask, resid_mask, "Live")
+            try:
+                # Recalculate Sg/Sr for the current live data
+                current_sgsr = calculate_sg_sr(self.current_processing_bur_df)
+                self._update_plot_data(self.current_processing_bur_df, current_sgsr, time_mask, resid_mask, "Live")
+            except Exception as e:
+                self.log_error(f"Error updating live plots: {e}")
         else:
             print("Warning: Received outlier data from worker, but no current_processing_bur_df is set.")
-
-
-    def _plot_all_points(self, bur_df):
-         """Helper to plot all points of a df without outlier info yet."""
-         if bur_df is None or bur_df.empty: return
-         try:
-             # Time Plot
-             if 'time_diff' in bur_df.columns:
-                 time_all_data = [{'pos': (i, y), 'data': 1} for i, y in enumerate(bur_df['time_diff'])]
-                 self.time_plot_all_scatter.setData(time_all_data)
-             else: self.time_plot_all_scatter.clear()
-             self.time_plot_outlier_scatter.clear() # Clear old outliers
-
-             # Projection Plot
-             if 'n_sum_r' in bur_df.columns and 'n_sum_g' in bur_df.columns:
-                 proj_all_data = [{'pos': (x, y), 'data': 1} for x, y in zip(bur_df['n_sum_r'], bur_df['n_sum_g'])]
-                 self.proj_plot_all_scatter.setData(proj_all_data)
-             else: self.proj_plot_all_scatter.clear()
-             self.proj_plot_outlier_scatter.clear() # Clear old outliers
-
-             # Residual Plot (Histogram of all)
-             if 'linear_resid' in bur_df.columns:
-                 resid_vals = bur_df['linear_resid'].dropna()
-                 if not resid_vals.empty:
-                     y_all, x_all = np.histogram(resid_vals, bins='auto')
-                     if self.resid_hist_all: self.resid_plot_widget.removeItem(self.resid_hist_all)
-                     if self.resid_hist_outliers: self.resid_plot_widget.removeItem(self.resid_hist_outliers); self.resid_hist_outliers = None
-                     self.resid_hist_all = pg.BarGraphItem(x=x_all[:-1], height=y_all, width=np.diff(x_all)[0]*0.8, brush='b', name='All Residuals')
-                     self.resid_plot_widget.addItem(self.resid_hist_all)
-                 else:
-                      if self.resid_hist_all: self.resid_plot_widget.removeItem(self.resid_hist_all); self.resid_hist_all = None
-                      if self.resid_hist_outliers: self.resid_plot_widget.removeItem(self.resid_hist_outliers); self.resid_hist_outliers = None
-             else:
-                  if self.resid_hist_all: self.resid_plot_widget.removeItem(self.resid_hist_all); self.resid_hist_all = None
-                  if self.resid_hist_outliers: self.resid_plot_widget.removeItem(self.resid_hist_outliers); self.resid_hist_outliers = None
-
-         except Exception as e:
-              self.log_error(f"Error in _plot_all_points: {e}")
-
-
-    def _update_plot_data(self, bur_df, time_outliers, proj_outliers, resid_outliers, mode="Preview"):
-        """Helper function to update all plots with new data and outlier masks."""
-        if bur_df is None or bur_df.empty:
-            self.clear_plots(mode)
-            return
-
-        title_suffix = f"({mode})" if mode == "Preview" else f"(Live: {os.path.basename(self.input_dir_edit.text())})" # Improve live title later if needed
-
-        try:
-            # --- Update Time Plot ---
-            if 'time_diff' in bur_df.columns:
-                time_all_data = [{'pos': (i, y), 'data': 1} for i, y in enumerate(bur_df['time_diff'])]
-                time_outlier_data = [{'pos': (i, y), 'data': 1} for i, y in enumerate(bur_df.loc[time_outliers, 'time_diff'])]
-                self.time_plot_all_scatter.setData(time_all_data)
-                self.time_plot_outlier_scatter.setData(time_outlier_data)
-                self.time_plot_widget.setTitle(f'Time Difference Outliers ({time_outliers.sum()} found) {title_suffix}')
-            else:
-                self.time_plot_all_scatter.clear()
-                self.time_plot_outlier_scatter.clear()
-                self.time_plot_widget.setTitle(f'Time Difference Outliers (Column Missing) {title_suffix}')
-
-
-            # --- Update Projection Plot ---
-            if 'n_sum_r' in bur_df.columns and 'n_sum_g' in bur_df.columns:
-                proj_all_data = [{'pos': (x, y), 'data': 1} for x, y in zip(bur_df['n_sum_r'], bur_df['n_sum_g'])]
-                proj_outlier_data = [{'pos': (x, y), 'data': 1} for x, y in zip(bur_df.loc[proj_outliers, 'n_sum_r'], bur_df.loc[proj_outliers, 'n_sum_g'])]
-                self.proj_plot_all_scatter.setData(proj_all_data)
-                self.proj_plot_outlier_scatter.setData(proj_outlier_data)
-                self.proj_plot_widget.setTitle(f'Linear Projection Outliers ({proj_outliers.sum()} found) {title_suffix}')
-            else:
-                 self.proj_plot_all_scatter.clear()
-                 self.proj_plot_outlier_scatter.clear()
-                 self.proj_plot_widget.setTitle(f'Linear Projection Outliers (Columns Missing) {title_suffix}')
-
-
-            # --- Update Residual Plot (Histogram) ---
-            if 'linear_resid' in bur_df.columns:
-                resid_vals = bur_df['linear_resid'].dropna()
-                if not resid_vals.empty:
-                    resid_outlier_vals = resid_vals[resid_outliers.reindex(resid_vals.index).fillna(False)]
-                    y_all, x_all = np.histogram(resid_vals, bins='auto')
-                    y_outliers, _ = np.histogram(resid_outlier_vals, bins=x_all)
-
-                    if self.resid_hist_all: self.resid_plot_widget.removeItem(self.resid_hist_all)
-                    if self.resid_hist_outliers: self.resid_plot_widget.removeItem(self.resid_hist_outliers)
-
-                    # Adjust width slightly to avoid overlap if needed
-                    bar_width = np.diff(x_all)[0] * 0.4
-                    self.resid_hist_all = pg.BarGraphItem(x=x_all[:-1], height=y_all, width=bar_width, brush='b', name='All Residuals')
-                    self.resid_hist_outliers = pg.BarGraphItem(x=x_all[:-1] + bar_width, height=y_outliers, width=bar_width, brush='r', name='Outlier Residuals') # Offset slightly
-
-                    self.resid_plot_widget.addItem(self.resid_hist_all)
-                    self.resid_plot_widget.addItem(self.resid_hist_outliers)
-                    self.resid_plot_widget.setTitle(f'Linear Residual Outliers ({resid_outliers.sum()} found) {title_suffix}')
-                else:
-                     self.clear_residual_histogram()
-                     self.resid_plot_widget.setTitle(f'Linear Residual Outliers (No Valid Data) {title_suffix}')
-            else:
-                self.clear_residual_histogram()
-                self.resid_plot_widget.setTitle(f'Linear Residual Outliers (Column Missing) {title_suffix}')
-
-        except Exception as e:
-            self.log_error(f"Error updating plot data: {e}")
-            # Optionally clear plots on error
-            # self.clear_plots(mode)
-
-    def clear_plots(self, mode="Preview"):
-        """Clears all plot data and resets titles."""
-        title_suffix = f"({mode})"
-        self.time_plot_all_scatter.clear()
-        self.time_plot_outlier_scatter.clear()
-        self.proj_plot_all_scatter.clear()
-        self.proj_plot_outlier_scatter.clear()
-        self.clear_residual_histogram()
-        self.time_plot_widget.setTitle(f'Time Difference Outliers {title_suffix}')
-        self.proj_plot_widget.setTitle(f'Linear Projection Outliers {title_suffix}')
-        self.resid_plot_widget.setTitle(f'Linear Residual Outliers {title_suffix}')
-
-    def clear_residual_histogram(self):
-        if self.resid_hist_all: self.resid_plot_widget.removeItem(self.resid_hist_all); self.resid_hist_all = None
-        if self.resid_hist_outliers: self.resid_plot_widget.removeItem(self.resid_hist_outliers); self.resid_hist_outliers = None
 
 
     def handle_run_pause_resume(self):
         if not self.is_running:
             # --- Start Processing ---
-            self.input_dir = self.input_dir_edit.text() # Get current dirs
+            self.input_dir = self.input_dir_edit.text()
             self.output_dir = self.output_dir_edit.text()
 
             if not self.input_dir or not self.output_dir:
@@ -446,38 +474,31 @@ class OutlierMainWindow(QMainWindow):
                  QMessageBox.critical(self, "Invalid Input", f"Input directory does not exist: {self.input_dir}")
                  return
 
-            # Get initial parameters
             time_cutoff = self.time_cutoff_spin.value()
-            proj_cutoff = self.proj_cutoff_spin.value()
+            proj_cutoff = self.proj_cutoff_spin.value() # Still passed to worker
             resid_cutoff = self.resid_cutoff_spin.value()
 
             self.status_bar.showMessage("Starting batch processing...")
-            # self.status_display.clear() # Optional: clear log box
             self.run_pause_button.setText("Pause")
-            self.set_controls_enabled(False) # Disable controls during run
+            self.set_controls_enabled(False)
             self.is_running = True
             self.is_paused = False
 
-            # Setup and run thread
             self.thread = QThread()
             self.worker = Worker(self.input_dir, self.output_dir, time_cutoff, proj_cutoff, resid_cutoff)
             self.worker.moveToThread(self.thread)
 
-            # Connect worker signals to slots
             self.worker.progress.connect(self.on_worker_progress)
             self.worker.error.connect(self.on_worker_error)
             self.worker.finished.connect(self.on_worker_finished)
             self.worker.processing_file.connect(self.on_worker_processing_file)
             self.worker.outliers_detected.connect(self.on_worker_outliers_detected)
 
-            # Clean up thread resources when finished
             self.thread.started.connect(self.worker.run)
-            self.worker.finished.connect(self.thread.quit) # Quit thread when worker finishes
+            self.worker.finished.connect(self.thread.quit)
             self.worker.finished.connect(self.worker.deleteLater)
             self.thread.finished.connect(self.thread.deleteLater)
-            # Ensure cleanup happens after main window slots are done
             self.thread.finished.connect(self.reset_worker_state)
-
 
             self.thread.start()
 
@@ -487,13 +508,12 @@ class OutlierMainWindow(QMainWindow):
                 self.worker.pause()
                 self.is_paused = True
                 self.run_pause_button.setText("Resume")
-                self.set_controls_enabled(True) # Re-enable parameter controls when paused
+                self.set_controls_enabled(True) # Allow parameter changes
                 self.status_bar.showMessage("Processing paused. Adjust parameters if needed.")
 
         elif self.is_running and self.is_paused:
             # --- Resume Processing ---
             if self.worker:
-                # Get potentially updated parameters
                 time_cutoff = self.time_cutoff_spin.value()
                 proj_cutoff = self.proj_cutoff_spin.value()
                 resid_cutoff = self.resid_cutoff_spin.value()
@@ -501,59 +521,54 @@ class OutlierMainWindow(QMainWindow):
                 self.worker.resume()
                 self.is_paused = False
                 self.run_pause_button.setText("Pause")
-                self.set_controls_enabled(False) # Disable controls again
+                self.set_controls_enabled(False)
                 self.status_bar.showMessage("Resuming processing...")
 
     def set_controls_enabled(self, enabled):
-        """Enable/disable controls, keeping run button always enabled (but text changes)."""
+        """Enable/disable controls."""
         self.input_dir_button.setEnabled(enabled)
         self.output_dir_button.setEnabled(enabled)
         self.time_cutoff_spin.setEnabled(enabled)
-        self.proj_cutoff_spin.setEnabled(enabled)
+        self.proj_cutoff_spin.setEnabled(enabled) # Keep enabled if needed while paused
         self.resid_cutoff_spin.setEnabled(enabled)
-        # Run/Pause button is handled separately
 
     @pyqtSlot(str)
     def on_worker_progress(self, message):
         self.status_bar.showMessage(message)
-        # self.status_display.append(message) # Optional log box update
 
     @pyqtSlot(str)
     def on_worker_error(self, message):
-        self.log_error(message) # Use existing log_error
+        self.log_error(message)
 
     @pyqtSlot()
     def on_worker_finished(self):
-        if self.is_running: # Avoid message if stopped manually
+        if self.is_running: # Avoid message if stopped manually via closeEvent
              self.status_bar.showMessage("Batch processing finished.")
         self.run_pause_button.setText("Run Processing")
         self.set_controls_enabled(True)
         self.is_running = False
         self.is_paused = False
-        # Worker/thread cleanup is handled by finished signal connections
+        # Worker/thread cleanup handled by finished signal connections
 
     @pyqtSlot()
     def reset_worker_state(self):
-         """ Ensure worker and thread are reset after thread finishes"""
          self.thread = None
          self.worker = None
-         self.current_processing_bur_df = None # Clear live data ref
-
+         self.current_processing_bur_df = None
 
     def log_error(self, message):
-         print(f"ERROR: {message}") # Log to console
+         print(f"ERROR: {message}")
          self.status_bar.showMessage(f"Error: {message[:100]}...")
-         # Avoid too many popups during batch processing, rely on status bar/console
+         # Maybe show only critical errors as popups during batch run
          # QMessageBox.warning(self, "Error", message)
 
     def closeEvent(self, event):
-        # Ensure thread is stopped if window is closed
         if self.is_running and self.worker:
             self.status_bar.showMessage("Window closed, stopping processing...")
-            self.worker.stop() # Request worker stop
+            self.worker.stop()
             if self.thread:
                 self.thread.quit()
-                if not self.thread.wait(2000): # Wait max 2 seconds
+                if not self.thread.wait(2000):
                      print("Warning: Worker thread did not stop gracefully.")
         event.accept()
 
