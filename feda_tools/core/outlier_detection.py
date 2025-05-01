@@ -11,16 +11,17 @@ def drop_empty_columns(df):
     """Drops columns that are entirely zero or NaN."""
     if df is None: return None
     df = df.loc[:, (df != 0).any(axis=0)]
-    df = df.dropna(axis=1, how='all') # Drop columns that are entirely NaN
+    df = df.dropna(axis=1, how='all')
     return df
 
 def drop_empty_rows(df):
     """Drops rows where all numeric columns are zero or NaN."""
     if df is None: return None
     numeric_cols = df.select_dtypes(include=np.number).columns
-    # Check if all numeric values in a row are 0 or NaN
-    empty_rows_mask = df[numeric_cols].apply(lambda row: (row == 0) | row.isna(), axis=1).all(axis=1)
-    return df[~empty_rows_mask]
+    if not numeric_cols.empty:
+        empty_rows_mask = df[numeric_cols].apply(lambda row: (row == 0) | row.isna(), axis=1).all(axis=1)
+        return df[~empty_rows_mask]
+    return df # Return original if no numeric columns
 
 def drop_empty(df):
     """Applies both drop_empty_columns and drop_empty_rows."""
@@ -30,12 +31,48 @@ def drop_empty(df):
 
 # === Core Data Loading and Calculation Functions ===
 
+def _calculate_linear_residuals(bur_df):
+    """Helper to calculate linear residuals (Duration vs Photons) and fit params."""
+    required_cols_resid = ['Duration (ms)', 'Number of Photons']
+    if not all(col in bur_df.columns for col in required_cols_resid):
+        return pd.Series(np.nan, index=bur_df.index), np.nan, np.nan, np.nan # resid, slope, intercept, std_resid
+
+    valid_data = bur_df[required_cols_resid].dropna()
+    if len(valid_data) < 2: # Need at least 2 points for a fit
+        return pd.Series(np.nan, index=bur_df.index), np.nan, np.nan, np.nan
+
+    x_data = valid_data['Duration (ms)'].values.reshape(-1, 1)
+    y_data = valid_data['Number of Photons'].values
+
+    try:
+        model = LinearRegression()
+        model.fit(x_data, y_data)
+        slope = model.coef_[0]
+        intercept = model.intercept_
+
+        # Calculate predictions and residuals on the original dataframe to keep index alignment
+        y_pred = model.predict(bur_df['Duration (ms)'].values.reshape(-1, 1))
+        residuals = pd.Series(bur_df['Number of Photons'] - y_pred, index=bur_df.index)
+
+        # Calculate std dev based on the valid residuals used for fitting
+        valid_residuals = residuals.loc[valid_data.index]
+        std_resid = valid_residuals.std()
+        if std_resid == 0 or pd.isna(std_resid): # Handle cases with no variance
+             std_resid = np.nan
+
+        return residuals, slope, intercept, std_resid
+
+    except Exception as fit_err:
+         warnings.warn(f"Linear regression fit failed for residual calculation: {fit_err}. Returning NaNs.", UserWarning)
+         return pd.Series(np.nan, index=bur_df.index), np.nan, np.nan, np.nan
+
+
 def load_burst_data(base_path, split_name):
     """
     Loads, cleans, and preprocesses burst data (.bur, .br4, .bg4) for a given split.
 
     Args:
-        base_path (str): The directory containing 'bi4_bur', 'br4', 'bg4' subdirectories.
+        base_path (str): The directory containing 'bi4_bur', 'br4', 'bg4' subdirs.
         split_name (str): The base name of the split files (without extension).
 
     Returns:
@@ -55,14 +92,13 @@ def load_burst_data(base_path, split_name):
         red_df = pd.read_csv(red_path, sep="\t")
         green_df = pd.read_csv(green_path, sep="\t")
 
-        # Clean data
         bur_df = drop_empty(bur_df)
         red_df = drop_empty(red_df)
         green_df = drop_empty(green_df)
 
         if bur_df is None or bur_df.empty:
             warnings.warn(f"Empty or invalid burst data after cleaning for {split_name}", UserWarning)
-            return None, red_df, green_df # Return potentially valid red/green even if bur is bad
+            return None, red_df, green_df
 
         # --- Pre-calculations ---
         # 1. Time Difference
@@ -70,34 +106,12 @@ def load_burst_data(base_path, split_name):
         if all(col in bur_df.columns for col in required_cols_time):
             bur_df['time_diff'] = bur_df['Duration (green) (ms)'] - bur_df['Duration (yellow) (ms)']
         else:
-            warnings.warn(f"Missing columns for 'time_diff' calculation in {split_name}. Skipping.", UserWarning)
-            bur_df['time_diff'] = np.nan # Add NaN column if calculation fails
+            warnings.warn(f"Missing columns for 'time_diff' calculation in {split_name}. Adding NaN column.", UserWarning)
+            bur_df['time_diff'] = np.nan
 
         # 2. Linear Residual (Duration vs Number of Photons)
-        required_cols_resid = ['Duration (ms)', 'Number of Photons']
-        if all(col in bur_df.columns for col in required_cols_resid):
-            # Drop NaNs before fitting
-            valid_data = bur_df[required_cols_resid].dropna()
-            if not valid_data.empty:
-                x_data = valid_data['Duration (ms)'].values.reshape(-1, 1)
-                y_data = valid_data['Number of Photons'].values
-                try:
-                    model = LinearRegression()
-                    model.fit(x_data, y_data)
-                    y_pred = model.predict(bur_df['Duration (ms)'].values.reshape(-1, 1))
-                    # Assign residuals back, aligning index
-                    residuals = pd.Series(bur_df['Number of Photons'] - y_pred, index=bur_df.index)
-                    bur_df['linear_resid'] = residuals
-                except Exception as fit_err:
-                     warnings.warn(f"Linear regression fit failed for residual calculation in {split_name}: {fit_err}. Skipping.", UserWarning)
-                     bur_df['linear_resid'] = np.nan
-            else:
-                 warnings.warn(f"No valid data for residual calculation in {split_name} after dropping NaNs. Skipping.", UserWarning)
-                 bur_df['linear_resid'] = np.nan
-        else:
-            warnings.warn(f"Missing columns for 'linear_resid' calculation in {split_name}. Skipping.", UserWarning)
-            bur_df['linear_resid'] = np.nan # Add NaN column if calculation fails
-
+        residuals, _, _, _ = _calculate_linear_residuals(bur_df) # Calculate residuals here
+        bur_df['linear_resid'] = residuals # Add the calculated residuals column
 
         return bur_df, red_df, green_df
 
@@ -106,7 +120,7 @@ def load_burst_data(base_path, split_name):
         return None, None, None
     except pd.errors.EmptyDataError:
         warnings.warn(f"Empty file encountered for split {split_name}", UserWarning)
-        return None, None, None # Or return empty DFs if preferred
+        return None, None, None
     except Exception as e:
         warnings.warn(f"Error loading data for split {split_name}: {type(e).__name__} - {e}", UserWarning)
         return None, None, None
@@ -121,29 +135,44 @@ def detect_time_difference_outliers(bur_df, z_cutoff):
         z_cutoff (float): The absolute z-score threshold for outlier detection.
 
     Returns:
-        pd.Series: Boolean Series (same index as bur_df), True indicates an outlier.
-                   Returns an all-False Series if 'time_diff' is missing or invalid.
+        tuple: (outlier_mask, mean_diff, std_diff)
+               outlier_mask (pd.Series): Boolean Series, True indicates an outlier.
+               mean_diff (float): Mean of the 'time_diff' data used.
+               std_diff (float): Standard deviation of the 'time_diff' data used.
+               Returns (all-False Series, NaN, NaN) on error or invalid data.
     """
+    default_return = (pd.Series(False, index=bur_df.index if bur_df is not None else None), np.nan, np.nan)
+
     if bur_df is None or 'time_diff' not in bur_df.columns:
         warnings.warn("Missing 'time_diff' column for outlier detection.", UserWarning)
-        return pd.Series(False, index=bur_df.index if bur_df is not None else None)
+        return default_return
 
     diff_data = bur_df['time_diff'].dropna()
-    if diff_data.empty or diff_data.std() == 0:
-         warnings.warn("'time_diff' column has no variance or is empty after dropna. Cannot calculate z-scores.", UserWarning)
-         return pd.Series(False, index=bur_df.index) # No outliers if no variance
+    if len(diff_data) < 2: # Need at least 2 points for std dev
+         warnings.warn("'time_diff' column has < 2 valid values. Cannot calculate z-scores.", UserWarning)
+         return default_return
 
-    z_scores = stats.zscore(diff_data)
+    mean_diff = diff_data.mean()
+    std_diff = diff_data.std()
+
+    if std_diff == 0 or pd.isna(std_diff):
+         warnings.warn("'time_diff' column has zero or NaN standard deviation. Cannot calculate z-scores.", UserWarning)
+         # Still return mean/std, but mask is all False
+         return (pd.Series(False, index=bur_df.index), mean_diff, std_diff if not pd.isna(std_diff) else np.nan)
+
+    z_scores = (diff_data - mean_diff) / std_diff # Manual calculation to use consistent mean/std
     outlier_mask = abs(z_scores) > z_cutoff
 
-    # Reindex mask to match original bur_df index, filling missing with False
-    return outlier_mask.reindex(bur_df.index, fill_value=False)
+    # Reindex mask to match original bur_df index
+    full_outlier_mask = outlier_mask.reindex(bur_df.index, fill_value=False)
+    return full_outlier_mask, mean_diff, std_diff
 
 
 def detect_linear_projection_outliers(bur_df, z_cutoff):
     """
     Detects outliers based on the z-score of the perpendicular distance
     from the linear regression line of 'n_sum_g' vs 'n_sum_r'.
+    (Note: This method is kept but not directly visualized in the current GUI setup).
 
     Args:
         bur_df (pd.DataFrame): Burst DataFrame with 'n_sum_g' and 'n_sum_r'.
@@ -154,22 +183,19 @@ def detect_linear_projection_outliers(bur_df, z_cutoff):
                    Returns an all-False Series if required columns are missing/invalid.
     """
     required_cols = ['n_sum_g', 'n_sum_r']
+    default_return = pd.Series(False, index=bur_df.index if bur_df is not None else None)
+
     if bur_df is None or not all(col in bur_df.columns for col in required_cols):
         warnings.warn(f"Missing required columns {required_cols} for projection outlier detection.", UserWarning)
-        return pd.Series(False, index=bur_df.index if bur_df is not None else None)
+        return default_return
 
-    # Drop rows with NaNs in required columns for fitting and distance calculation
     valid_data = bur_df[required_cols].dropna()
-    if valid_data.empty:
-         warnings.warn("No valid data for projection outlier detection after dropping NaNs.", UserWarning)
-         return pd.Series(False, index=bur_df.index)
+    if len(valid_data) < 2:
+         warnings.warn("Not enough valid data points (<2) for linear regression in projection outlier detection.", UserWarning)
+         return default_return
 
     x_data = valid_data['n_sum_r'].values.reshape(-1, 1)
     y_data = valid_data['n_sum_g'].values
-
-    if len(valid_data) < 2:
-         warnings.warn("Not enough valid data points (<2) for linear regression in projection outlier detection.", UserWarning)
-         return pd.Series(False, index=bur_df.index)
 
     try:
         model = LinearRegression()
@@ -178,50 +204,73 @@ def detect_linear_projection_outliers(bur_df, z_cutoff):
         intercept = model.intercept_
 
         # Calculate perpendicular distance for each point in valid_data
-        # Distance = |slope*x - y + intercept| / sqrt(slope^2 + 1)
         distances = np.abs(slope * valid_data['n_sum_r'] - valid_data['n_sum_g'] + intercept) / np.sqrt(slope**2 + 1)
 
-        if distances.std() == 0:
-             warnings.warn("Perpendicular distances have zero variance. Cannot calculate z-scores for projection outliers.", UserWarning)
-             return pd.Series(False, index=bur_df.index)
+        if distances.empty: # Should not happen if len(valid_data) >= 2, but check
+             return default_return
 
-        z_scores = stats.zscore(distances)
+        std_dist = distances.std()
+        if std_dist == 0 or pd.isna(std_dist):
+             warnings.warn("Perpendicular distances have zero or NaN variance. Cannot calculate z-scores for projection outliers.", UserWarning)
+             return default_return # No outliers if no variance
+
+        z_scores = stats.zscore(distances) # Use scipy zscore on distances
         outlier_mask = abs(z_scores) > z_cutoff
 
-        # Reindex mask to match original bur_df index, filling missing with False
+        # Reindex mask to match original bur_df index
         return outlier_mask.reindex(bur_df.index, fill_value=False)
 
     except Exception as e:
         warnings.warn(f"Error during linear projection outlier detection: {type(e).__name__} - {e}", UserWarning)
-        return pd.Series(False, index=bur_df.index)
+        return default_return
 
 
 def detect_linear_residual_outliers(bur_df, z_cutoff):
     """
-    Detects outliers based on the z-score of the 'linear_resid' column.
+    Detects outliers based on the z-score of the 'linear_resid' column
+    (residuals from Duration vs Number of Photons fit).
 
     Args:
         bur_df (pd.DataFrame): Burst DataFrame containing a 'linear_resid' column.
         z_cutoff (float): The absolute z-score threshold for outlier detection.
 
     Returns:
-        pd.Series: Boolean Series (same index as bur_df), True indicates an outlier.
-                   Returns an all-False Series if 'linear_resid' is missing or invalid.
+        tuple: (outlier_mask, slope, intercept, std_resid)
+               outlier_mask (pd.Series): Boolean Series, True indicates an outlier.
+               slope (float): Slope of the Duration vs Photons fit.
+               intercept (float): Intercept of the Duration vs Photons fit.
+               std_resid (float): Standard deviation of the residuals used for z-score.
+               Returns (all-False Series, NaN, NaN, NaN) on error or invalid data.
     """
+    default_return = (pd.Series(False, index=bur_df.index if bur_df is not None else None), np.nan, np.nan, np.nan)
+
     if bur_df is None or 'linear_resid' not in bur_df.columns:
         warnings.warn("Missing 'linear_resid' column for outlier detection.", UserWarning)
-        return pd.Series(False, index=bur_df.index if bur_df is not None else None)
+        return default_return
 
-    resid_data = bur_df['linear_resid'].dropna()
-    if resid_data.empty or resid_data.std() == 0:
-         warnings.warn("'linear_resid' column has no variance or is empty after dropna. Cannot calculate z-scores.", UserWarning)
-         return pd.Series(False, index=bur_df.index) # No outliers if no variance
+    # Recalculate fit parameters and std_resid needed for plotting bands
+    # Use the same helper function used in load_burst_data
+    residuals, slope, intercept, std_resid = _calculate_linear_residuals(bur_df)
 
-    z_scores = stats.zscore(resid_data)
+    # Check if calculation failed
+    if pd.isna(slope) or pd.isna(intercept) or pd.isna(std_resid):
+         warnings.warn("Fit parameters or residual std dev could not be calculated. Cannot determine residual outliers.", UserWarning)
+         return default_return
+
+    # Use the pre-calculated residuals column for z-score calculation
+    resid_data = bur_df['linear_resid'].dropna() # Use the column added in load_burst_data
+    if resid_data.empty:
+         warnings.warn("'linear_resid' column is empty after dropna. Cannot calculate z-scores.", UserWarning)
+         return default_return # Return valid fit params but no outliers
+
+    # Calculate z-scores based on the calculated std_resid
+    # Avoid recalculating std dev here to be consistent with the band calculation
+    z_scores = resid_data / std_resid
     outlier_mask = abs(z_scores) > z_cutoff
 
-    # Reindex mask to match original bur_df index, filling missing with False
-    return outlier_mask.reindex(bur_df.index, fill_value=False)
+    # Reindex mask to match original bur_df index
+    full_outlier_mask = outlier_mask.reindex(bur_df.index, fill_value=False)
+    return full_outlier_mask, slope, intercept, std_resid
 
 
 def calculate_sg_sr(bur_df):
@@ -235,17 +284,18 @@ def calculate_sg_sr(bur_df):
         pd.Series: Series containing the S_g/S_r ratio, or NaNs if columns missing.
                    Index matches bur_df.
     """
-    required_cols = ['Number of Photons (green)', 'Duration (green) (ms)'] # Assuming Sr is proportional to Duration
+    required_cols = ['Number of Photons (green)', 'Duration (green) (ms)']
     if bur_df is None or not all(col in bur_df.columns for col in required_cols):
         warnings.warn(f"Missing required columns {required_cols} for Sg/Sr calculation.", UserWarning)
         return pd.Series(np.nan, index=bur_df.index if bur_df is not None else None)
 
-    # Avoid division by zero or NaN duration
     duration_g = bur_df['Duration (green) (ms)']
     valid_duration_mask = (duration_g.notna()) & (duration_g != 0)
 
     sg_sr = pd.Series(np.nan, index=bur_df.index)
-    sg_sr[valid_duration_mask] = bur_df.loc[valid_duration_mask, 'Number of Photons (green)'] / duration_g[valid_duration_mask]
+    # Ensure 'Number of Photons (green)' is numeric before division
+    photons_g = pd.to_numeric(bur_df['Number of Photons (green)'], errors='coerce')
+    sg_sr[valid_duration_mask] = photons_g[valid_duration_mask] / duration_g[valid_duration_mask]
 
     return sg_sr
 
@@ -267,7 +317,6 @@ def apply_filters(df, keep_mask):
         return df
     if not df.index.equals(keep_mask.index):
          warnings.warn("Index mismatch between DataFrame and keep_mask in apply_filters.", UserWarning)
-         # Attempt to align if possible, otherwise return original df
          try:
              aligned_mask = keep_mask.reindex(df.index, fill_value=False)
              return df[aligned_mask]
@@ -276,3 +325,26 @@ def apply_filters(df, keep_mask):
               return df
 
     return df[keep_mask]
+
+def get_combined_outliers(bur_df, time_cutoff, resid_cutoff, proj_cutoff):
+    """
+    Runs all outlier detection methods and returns a combined mask.
+
+    Args:
+        bur_df (pd.DataFrame): Burst data.
+        time_cutoff (float): Z-score cutoff for time difference.
+        resid_cutoff (float): Z-score cutoff for linear residuals.
+        proj_cutoff (float): Z-score cutoff for linear projection.
+
+    Returns:
+        pd.Series: Combined boolean mask where True indicates an outlier by ANY method.
+    """
+    time_outliers, _, _ = detect_time_difference_outliers(bur_df, time_cutoff)
+    resid_outliers, _, _, _ = detect_linear_residual_outliers(bur_df, resid_cutoff)
+    proj_outliers = detect_linear_projection_outliers(bur_df, proj_cutoff)
+
+    # Combine using logical OR. Ensure masks are aligned to bur_df index.
+    combined = (time_outliers.reindex(bur_df.index, fill_value=False) |
+                resid_outliers.reindex(bur_df.index, fill_value=False) |
+                proj_outliers.reindex(bur_df.index, fill_value=False))
+    return combined
