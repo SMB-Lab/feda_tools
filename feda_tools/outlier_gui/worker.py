@@ -1,7 +1,7 @@
 import os
 import glob
 import pandas as pd
-import numpy as np # Needed for tuple type hint
+import numpy as np
 import traceback
 import time
 from PyQt6.QtCore import QObject, pyqtSignal, QMutex, QWaitCondition, QMutexLocker
@@ -11,11 +11,11 @@ try:
     from ..core.outlier_detection import (
         load_burst_data,
         detect_time_difference_outliers,
-        detect_linear_projection_outliers,
+        # detect_linear_projection_outliers, # Removed
         detect_linear_residual_outliers,
         calculate_sg_sr,
         apply_filters,
-        get_combined_outliers # Import the new helper
+        get_combined_outliers # Updated signature
     )
 except ImportError:
     # Fallback for development
@@ -28,7 +28,7 @@ except ImportError:
         from feda_tools.core.outlier_detection import (
             load_burst_data,
             detect_time_difference_outliers,
-            detect_linear_projection_outliers,
+            # detect_linear_projection_outliers, # Removed
             detect_linear_residual_outliers,
             calculate_sg_sr,
             apply_filters,
@@ -39,7 +39,7 @@ except ImportError:
         # Dummy functions
         def load_burst_data(*args, **kwargs): return (pd.DataFrame({'time_diff': [], 'n_sum_g': [], 'n_sum_r': [], 'linear_resid': []}), pd.DataFrame(), pd.DataFrame())
         def detect_time_difference_outliers(*args, **kwargs): return pd.Series(dtype=bool), np.nan, np.nan
-        def detect_linear_projection_outliers(*args, **kwargs): return pd.Series(dtype=bool)
+        # def detect_linear_projection_outliers(*args, **kwargs): return pd.Series(dtype=bool) # Removed
         def detect_linear_residual_outliers(*args, **kwargs): return pd.Series(dtype=bool), np.nan, np.nan, np.nan
         def calculate_sg_sr(*args, **kwargs): return pd.Series(dtype=float)
         def apply_filters(df, *args, **kwargs): return df
@@ -52,21 +52,21 @@ class Worker(QObject):
     error = pyqtSignal(str)
     finished = pyqtSignal()
     processing_file = pyqtSignal(str, pd.DataFrame)
-    # Updated signal to emit masks AND plotting parameters
+    # Updated signal: removed projection mask
     outliers_detected = pyqtSignal(
         pd.Series, # time_mask
         tuple,     # (mean_diff, std_diff)
         pd.Series, # resid_mask
-        tuple,     # (slope, intercept, std_resid)
-        pd.Series  # proj_mask (still calculated, though not directly plotted)
+        tuple      # (slope, intercept, std_resid)
     )
 
-    def __init__(self, input_dir, output_dir, time_cutoff, proj_cutoff, resid_cutoff):
+    # Removed proj_cutoff from constructor
+    def __init__(self, input_dir, output_dir, time_cutoff, resid_cutoff):
         super().__init__()
         self.input_dir = input_dir
         self.output_dir = output_dir
         self._time_cutoff = time_cutoff
-        self._proj_cutoff = proj_cutoff
+        # self._proj_cutoff = proj_cutoff # Removed
         self._resid_cutoff = resid_cutoff
         self._is_running = True
         self._is_paused = False
@@ -92,10 +92,11 @@ class Worker(QObject):
                 self._is_paused = False
                 self._pause_cond.wakeAll()
 
-    def update_parameters(self, time_cutoff, proj_cutoff, resid_cutoff):
+    # Removed proj_cutoff from update_parameters
+    def update_parameters(self, time_cutoff, resid_cutoff):
         with QMutexLocker(self._mutex):
             self._time_cutoff = time_cutoff
-            self._proj_cutoff = proj_cutoff
+            # self._proj_cutoff = proj_cutoff # Removed
             self._resid_cutoff = resid_cutoff
 
     # --- Main Processing Logic ---
@@ -129,7 +130,7 @@ class Worker(QObject):
                     if not self._is_running: break
 
                     current_time_cutoff = self._time_cutoff
-                    current_proj_cutoff = self._proj_cutoff
+                    # current_proj_cutoff = self._proj_cutoff # Removed
                     current_resid_cutoff = self._resid_cutoff
 
                 # --- Process Single File ---
@@ -150,20 +151,20 @@ class Worker(QObject):
                     # --- Outlier Detection ---
                     time_outliers, mean_diff, std_diff = detect_time_difference_outliers(bur_df, current_time_cutoff)
                     resid_outliers, slope, intercept, std_resid = detect_linear_residual_outliers(bur_df, current_resid_cutoff)
-                    proj_outliers = detect_linear_projection_outliers(bur_df, current_proj_cutoff) # Still run it
+                    # proj_outliers = detect_linear_projection_outliers(bur_df, current_proj_cutoff) # Removed call
 
-                    # Emit masks AND plotting parameters
+                    # Emit masks AND plotting parameters (without projection mask)
                     self.outliers_detected.emit(
                         time_outliers.copy(),
                         (mean_diff, std_diff),
                         resid_outliers.copy(),
-                        (slope, intercept, std_resid),
-                        proj_outliers.copy()
+                        (slope, intercept, std_resid)
+                        # proj_outliers removed
                     )
 
                     # --- Filtering & Saving ---
-                    # Use the helper function for clarity
-                    combined_outliers = get_combined_outliers(bur_df, current_time_cutoff, current_resid_cutoff, current_proj_cutoff)
+                    # Use the updated helper function (without proj_cutoff)
+                    combined_outliers = get_combined_outliers(bur_df, current_time_cutoff, current_resid_cutoff)
                     keep_mask = ~combined_outliers
                     filtered_bur_df = apply_filters(bur_df.copy(), keep_mask)
 
@@ -185,7 +186,7 @@ class Worker(QObject):
                     relative_path_bur = os.path.relpath(bur_file_path, start=self.input_dir)
                     output_bur_path = os.path.join(self.output_dir, relative_path_bur)
                     relative_dir = os.path.dirname(relative_path_bur)
-                    base_relative_dir = os.path.dirname(relative_dir) # Go one level up from bi4_bur
+                    base_relative_dir = os.path.dirname(relative_dir)
                     output_red_path = os.path.join(self.output_dir, base_relative_dir, 'br4', split_name_base + '.br4')
                     output_green_path = os.path.join(self.output_dir, base_relative_dir, 'bg4', split_name_base + '.bg4')
 
