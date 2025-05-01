@@ -1,6 +1,7 @@
 import tttrlib
 import numpy as np
 
+# TODO: Add conv filter parameter seleciton
 def setup_fit23(num_bins, macro_res, counts_irf, g_factor, l1_japan_corr, l2_japan_corr):
     dt = 25000/num_bins/1000
     period = 1/(macro_res*np.power(10, 6))

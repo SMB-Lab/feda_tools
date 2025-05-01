@@ -79,7 +79,7 @@ class Worker(QtCore.QObject):
                 )
 
                 if bi4_bur_df is not None and bg4_df is not None:
-                    sg_sr_value = bg4_df['Number of Photons (green)'].values[0] / bg4_df['Duration (green) (ms)'].values[0]
+                    sg_sr_value = bi4_bur_df['Number of Photons (green)'].values[0] / bi4_bur_df['Duration (green) (ms)'].values[0]
                     mean_macro = bi4_bur_df['Mean Macro Time (ms)'].values[0]
                     
                     # tau_value = bg4_df['Fit tau'].values[0]

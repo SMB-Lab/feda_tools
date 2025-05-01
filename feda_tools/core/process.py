@@ -237,6 +237,9 @@ def process_single_burst(
     )
     tau_r, gamma_r, r0_r, rho_r, softbifl_r, i2star_r, rs_scat_r, rs_exp_r = fit_r
 
+    # TODO: REMOVE FIT FROM RED
+    # TODO: Yellow is 1 and 3 but micro time channels run from 12499 to 25000
+    # TODO: Make those channels adjustable
     # ------------------------------------ DF #2 ---------------------------------------
     bg4_df = pd.DataFrame(
         {

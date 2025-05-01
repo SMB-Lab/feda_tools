@@ -111,9 +111,10 @@ class Fit23PreviewWidget(QtWidgets.QWidget):
 
         self.state_handler.fit_params = self.fit_params
 
+        # TODO: Data is not set to log scale
         self.plot_widget.clear()
         x = np.arange(len(counts))
-        self.plot_widget.plot(x, norm_counts, pen='b', symbol='o', symbolSize=4, name='Data')
+        self.plot_widget.plot(x, [x for x in self.fit23_model.data] / np.max(counts), pen='b', symbol='o', symbolSize=4, name='Data')
         self.plot_widget.plot(x, counts_irf / np.max(counts_irf), pen='orange', symbol='t', symbolSize=4, name='IRF')
         self.plot_widget.plot(x, self.fit23_model.model / np.max(self.fit23_model.model), pen='g', name='Model')
 

@@ -53,6 +53,7 @@ class MainApplication(QtWidgets.QMainWindow):
 def main():
     app = QtWidgets.QApplication(sys.argv)
     main_window = MainApplication()
+    main_window.show()
     sys.exit(app.exec())
 
 if __name__ == '__main__':
