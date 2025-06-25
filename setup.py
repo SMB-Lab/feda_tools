@@ -40,7 +40,7 @@ setup(
         'seaborn==0.13.0',
         'matplotlib==3.8.3',
         'pathlib==1.0.1',
-        'tttrlib>=0.23.9',
+        'tttrlib==0.25.0',
         'pyyaml',
     ],
     python_requires= '>=3.11.5, <=3.11.9',
