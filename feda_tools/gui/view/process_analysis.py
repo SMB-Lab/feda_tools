@@ -1,10 +1,9 @@
 from PyQt6 import QtWidgets, QtCore
 from PyQt6.QtCore import QThread, pyqtSignal
 from .widgets import PlotWidget
-from feda_tools.core import process as proc
+from feda_tools.core import burst_processing as bp
 from feda_tools.core import analysis as an
 from feda_tools.core import data as dat
-from feda_tools.core import model
 import numpy as np
 import pandas as pd
 
@@ -23,87 +22,97 @@ class Worker(QtCore.QObject):
     def run(self):
         try:
             data_ptu = self.state_handler.data_ptu
-            data_irf = self.state_handler.data_irf
             burst_index = self.state_handler.burst_index
-            fit_params = self.state_handler.fit_params
 
+            # Get configuration from state handler (matching new system)
             min_photon_count = self.state_handler.config.get('min_photon_count', 60)
-            bg4_micro_time_min = self.state_handler.config.get('bg4_micro_time_min', 0)
-            bg4_micro_time_max = self.state_handler.config.get('bg4_micro_time_max', 12499)
+            min_photon_count_green = self.state_handler.config.get('min_photon_count_green', 20)
+            
+            # BG4 parameters (Prompt)
+            bg4_micro_time_min = self.state_handler.config.get('bg4_micro_time_min', 1000)
+            bg4_micro_time_max = self.state_handler.config.get('bg4_micro_time_max', 7000)
+            
+            # BR4 parameters (Prompt) 
+            br4_micro_time_min = self.state_handler.config.get('br4_micro_time_min', bg4_micro_time_min)
+            br4_micro_time_max = self.state_handler.config.get('br4_micro_time_max', bg4_micro_time_max)
+            
+            # BY4 parameters (Delay)
+            by4_micro_time_min = self.state_handler.config.get('by4_micro_time_min', 13500)
+            by4_micro_time_max = self.state_handler.config.get('by4_micro_time_max', 18000)
+            
+            # Fluorescence anisotropy parameters
             g_factor = self.state_handler.config.get('g_factor', 1.04)
+            g_factor_red = self.state_handler.config.get('g_factor_red', 2.5)
             l1_japan_corr = self.state_handler.config.get('l1_japan_corr', 0.0308)
             l2_japan_corr = self.state_handler.config.get('l2_japan_corr', 0.0368)
+            
+            # Background signals
             bg4_bkg_para = self.state_handler.config.get('bg4_bkg_para', 0)
             bg4_bkg_perp = self.state_handler.config.get('bg4_bkg_perp', 0)
-            num_bins = self.state_handler.config.get('num_bins', 128)
+            br4_bkg_para = self.state_handler.config.get('br4_bkg_para', 0)
+            br4_bkg_perp = self.state_handler.config.get('br4_bkg_perp', 0)
+            by4_bkg_para = self.state_handler.config.get('by4_bkg_para', 0)
+            by4_bkg_perp = self.state_handler.config.get('by4_bkg_perp', 0)
 
-            counts_irf, _ = np.histogram(data_irf.micro_times, bins=num_bins)
-            counts_irf_nb = counts_irf.copy()
-            counts_irf_nb[0:3] = 0
-            counts_irf_nb[10:66] = 0
-            counts_irf_nb[74:128] = 0
+            # Get timing resolutions
             macro_res = data_ptu.get_header().macro_time_resolution
-            fit23_model = model.setup_fit23(
-                num_bins, macro_res, counts_irf_nb, g_factor, l1_japan_corr, l2_japan_corr
+            micro_res = data_ptu.get_header().micro_time_resolution
+
+            # Process bursts using new burst processing system
+            bi4_bur_df, bg4_df, br4_df, by4_df = bp.process_bursts(
+                burst_index=burst_index,
+                all_macro_times=data_ptu.macro_times,
+                all_micro_times=data_ptu.micro_times,
+                routing_channels=data_ptu.routing_channels,
+                macro_res=macro_res,
+                micro_res=micro_res,
+                min_photon_count=min_photon_count,
+                min_photon_count_green=min_photon_count_green,
+                bg4_micro_time_min=bg4_micro_time_min,
+                bg4_micro_time_max=bg4_micro_time_max,
+                br4_micro_time_min=br4_micro_time_min,
+                br4_micro_time_max=br4_micro_time_max,
+                by4_micro_time_min=by4_micro_time_min,
+                by4_micro_time_max=by4_micro_time_max,
+                g_factor=g_factor,
+                g_factor_red=g_factor_red,
+                l1_japan_corr=l1_japan_corr,
+                l2_japan_corr=l2_japan_corr,
+                bg4_bkg_para=bg4_bkg_para,
+                bg4_bkg_perp=bg4_bkg_perp,
+                br4_bkg_para=br4_bkg_para,
+                br4_bkg_perp=br4_bkg_perp,
+                by4_bkg_para=by4_bkg_para,
+                by4_bkg_perp=by4_bkg_perp
             )
 
+            # Extract data for plotting (using new column names)
             sg_sr = []
             mean_macro_time = []
-            tau_values = []
-            r_s_values = []
+            
+            if len(bi4_bur_df) > 0:
+                # Calculate Sg/Sr from the signal columns
+                sg_values = bi4_bur_df['Sg (prompt) (kHz)'].values
+                sr_values = bi4_bur_df['Sr (prompt) (kHz)'].values
+                
+                # Calculate ratios, handling division by zero
+                for sg, sr in zip(sg_values, sr_values):
+                    if sr > 0:
+                        sg_sr.append(sg / sr)
+                        mean_macro_time.append(bi4_bur_df['Mean Macro Time (ms)'].iloc[len(sg_sr)-1])
+
+            # Emit progress updates during processing
             total_bursts = len(burst_index)
-            all_bi4_bur_df = []
-            all_bg4_df = []
+            if total_bursts > 0:
+                self.progress_update.emit(100)
 
-            for i, burst in enumerate(burst_index, 1):
-                if len(burst) < min_photon_count:
-                    continue
-
-                bi4_bur_df, bg4_df = proc.process_single_burst(
-                    burst,
-                    data_ptu.macro_times,
-                    data_ptu.micro_times,
-                    data_ptu.routing_channels,
-                    macro_res,
-                    data_ptu.get_header().micro_time_resolution,
-                    min_photon_count,
-                    bg4_micro_time_min,
-                    bg4_micro_time_max,
-                    g_factor,
-                    l1_japan_corr,
-                    l2_japan_corr,
-                    bg4_bkg_para,
-                    bg4_bkg_perp,
-                    fit23_model,
-                    fit_params
-                )
-
-                if bi4_bur_df is not None and bg4_df is not None:
-                    sg_sr_value = bi4_bur_df['Number of Photons (green)'].values[0] / bi4_bur_df['Duration (green) (ms)'].values[0]
-                    mean_macro = bi4_bur_df['Mean Macro Time (ms)'].values[0]
-                    
-                    # tau_value = bg4_df['Fit tau'].values[0]
-                    # r_s_value = bg4_df['Fit rs_scatter'].values[0]
-
-                    sg_sr.append(sg_sr_value)
-                    mean_macro_time.append(mean_macro)
-                    # tau_values.append(tau_value)
-                    # r_s_values.append(r_s_value)
-
-                    all_bi4_bur_df.append(bi4_bur_df)
-                    all_bg4_df.append(bg4_df)
-
-                if i % self.update_interval == 0 or i == total_bursts:
-                    self.progress_update.emit(int(i / total_bursts * 100))
-
+            # Emit data for plotting
             self.data_ready.emit(sg_sr, mean_macro_time)
 
-            bi4_bur_df_combined = pd.concat(all_bi4_bur_df, ignore_index=True)
-            bg4_df_combined = pd.concat(all_bg4_df, ignore_index=True)
-
+            # Save results using new system (all 4 files)
             output_directory = self.state_handler.output_directory
             file_path = self.state_handler.file_ptu
-            dat.save_results(output_directory, file_path, bi4_bur_df_combined, bg4_df_combined)
+            dat.save_results(output_directory, file_path, bi4_bur_df, bg4_df, br4_df, by4_df)
 
             self.finished.emit()
         except Exception as e:
