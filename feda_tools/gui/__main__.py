@@ -1,6 +1,6 @@
 import sys
 from PyQt6 import QtWidgets
-from .view.threshold_adjustment import ThresholdAdjustmentWidget
+from .view.dashboard import DashboardWidget
 from .view.process_analysis import ProcessAnalysisWidget
 from .view.state_handler import StateHandler
 from importlib.resources import files
@@ -16,16 +16,16 @@ class MainApplication(QtWidgets.QMainWindow):
         self.stacked_widget = QtWidgets.QStackedWidget()
         self.setCentralWidget(self.stacked_widget)
 
-        # Initially only create the threshold widget
-        self.threshold_widget = ThresholdAdjustmentWidget(self.state_handler)
-        self.stacked_widget.addWidget(self.threshold_widget)
+        # Initially only create the dashboard widget
+        self.dashboard_widget = DashboardWidget(self.state_handler)
+        self.stacked_widget.addWidget(self.dashboard_widget)
         
         # Initialize process widget as None
         self.process_widget = None
 
-        # Connect threshold widget directly to process analysis (skip fit23)
-        self.threshold_widget.next_button.clicked.connect(self.create_and_show_process_widget)
-        self.stacked_widget.setCurrentWidget(self.threshold_widget)
+        # Connect dashboard widget directly to process analysis (skip fit23)
+        self.dashboard_widget.next_button.clicked.connect(self.create_and_show_process_widget)
+        self.stacked_widget.setCurrentWidget(self.dashboard_widget)
         self.show()
 
     def create_and_show_process_widget(self):

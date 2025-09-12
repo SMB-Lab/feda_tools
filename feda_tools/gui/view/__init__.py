@@ -13,13 +13,13 @@ Views should not contain business logic or call core functions directly.
 All data operations should go through ViewModels via the Coordinator.
 """
 
-from .threshold_adjustment import ThresholdAdjustmentWidget
+from .dashboard import DashboardWidget
 from .process_analysis import ProcessAnalysisWidget
 from .widgets import PlotWidget
 from .state_handler import StateHandler
 
 __all__ = [
-    'ThresholdAdjustmentWidget',
+    'DashboardWidget',
     'ProcessAnalysisWidget',
     'PlotWidget',
     'StateHandler'
