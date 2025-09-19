@@ -9,3 +9,6 @@ Installation instructions:
 
 Recommendations:
 - Use Anaconda-Navigator to install Spyder with Spyder-notebook and use it to interact with the analysis notebooks. There are more tools provided by Spyder than with by the basic Jupyter Server. The variable explorer offered by Spyder is very good for debugging analysis, in particular.
+
+To Run GUI:
+Install requirements with `pip install -r requirements.txt` and then execute the gui from the main folder with `python -m feda_tools.gui`
