@@ -4,14 +4,12 @@ import pandas as pd
 import pathlib
 import tttrlib
 
-from feda_tools.core import utilities as utils
 from feda_tools.core import analysis as an
 from feda_tools.core import data as dat
-from feda_tools.core import model
-from feda_tools.core import process
+from feda_tools.core import burst_processing as bp
 
 def main():
-    # Set file paths
+    # Set file paths (adapt to current directory structure)
     file_path = pathlib.Path('./test data/2024')
     file_source = '/Split_20230809_HighFRETDNAStd_1hr_Dani-000000.ptu'
     file_water = '/20230809_IRFddH2O_Dani_5min.ptu'
@@ -31,98 +29,117 @@ def main():
     all_micro_times = data_ptu.micro_times
     routing_channels = data_ptu.routing_channels
 
-    all_macro_times_irf = data_irf.macro_times
-    all_micro_times_irf = data_irf.micro_times
-    routing_channels_irf = data_irf.routing_channels
-
-    all_macro_times_bkg = data_bkg.macro_times
-    all_micro_times_bkg = data_bkg.micro_times
-    routing_channels_bkg = data_bkg.routing_channels
-
     # Get resolutions
     macro_res = data_ptu.get_header().macro_time_resolution
     micro_res = data_ptu.get_header().micro_time_resolution
 
+    print("Micro Time Resolution:", micro_res*10**12, "ps")
+    print("Macro Time Resolution:", macro_res*10**9, "ns")
+
     # Total number of events (photons)
     total_events = len(all_macro_times)
     print("Total Events:", total_events)
-    chunk_size = 30000  # Set number of indices per chunk
-    num_chunks = (total_events + chunk_size - 1) // chunk_size  # Calculate the number of chunks
+    
+    # Analysis window for subset of PTU (for testing)
+    min_event = 0
+    max_event = 300000
 
-    # Analysis settings
+    # Analysis settings (matching working pipeline)
     min_photon_count = 60
-    bg4_micro_time_min = 0
-    bg4_micro_time_max = 12499
+    min_photon_count_green = 20
+    
+    # BG4 parameters (Prompt)
+    bg4_micro_time_min = 1000
+    bg4_micro_time_max = 7000
+    
+    # BR4 parameters (Prompt) 
+    br4_micro_time_min = bg4_micro_time_min
+    br4_micro_time_max = bg4_micro_time_max
+    
+    # BY4 parameters (Delay)
+    by4_micro_time_min = 13500
+    by4_micro_time_max = 18000
+    
+    # Fluorescence anisotropy parameters
     g_factor = 1.04
+    g_factor_red = 2.5
     l1_japan_corr = 0.0308
     l2_japan_corr = 0.0368
+    
+    # Background signals
     bg4_bkg_para = 0
     bg4_bkg_perp = 0
-    num_bins = 128
+    br4_bkg_para = 0
+    br4_bkg_perp = 0
+    by4_bkg_para = 0
+    by4_bkg_perp = 0
 
-    # Initialize result containers
-    all_bi4_bur_df = []
-    all_bg4_df = []
+    # Calculate interphoton arrival times for the full dataset
+    print("Calculating interphoton arrival times...")
+    photon_time_intervals, photon_ids = an.interphoton_arrival_times(
+        all_macro_times, all_micro_times, macro_res, micro_res
+    )
 
-    for chunk_idx in range(num_chunks):
-        print(f"Processing chunk {chunk_idx + 1}/{num_chunks}...")
+    # Calculate running average
+    print("Calculating running average...")
+    window_size = 30
+    running_avg = an.running_average(photon_time_intervals, window_size)
+    xarr = np.arange(window_size - 1, len(photon_time_intervals))
+    logrunavg = np.log10(running_avg)
 
-        # Define start and end indices for the current chunk
-        start_idx = chunk_idx * chunk_size
-        end_idx = min((chunk_idx + 1) * chunk_size, total_events)
+    # Estimate background noise (matching working pipeline)
+    print("Estimating background noise...")
+    bins = {"x": 141, "y": 141}
+    bins_y = bins['y']
+    mu, std, noise_mean, filtered_logrunavg, bins_logrunavg = an.estimate_background_noise(logrunavg, bins_y)
 
-        # Slice data for the current chunk
-        macro_times_chunk = all_macro_times[start_idx:end_idx]
-        micro_times_chunk = all_micro_times[start_idx:end_idx]
-        routing_channels_chunk = routing_channels[start_idx:end_idx]
+    # Define 4-sigma threshold for burst isolation
+    threshold_value = mu - 4 * std
+    print(f"Threshold value: {threshold_value}")
 
-        # Calculate interphoton arrival times for the current chunk
-        photon_time_intervals, photon_ids = an.interphoton_arrival_times(
-            macro_times_chunk, micro_times_chunk, macro_res, micro_res
-        )
+    # Extract bursts using threshold
+    print("Extracting burst indices...")
+    burst_index, filtered_values = dat.extract_greater(logrunavg, threshold_value)
+    print(f"Found {len(burst_index)} potential bursts")
 
-        # Calculate running average
-        window_size = 30
-        running_avg = an.running_average(photon_time_intervals, window_size)
-        logrunavg = np.log10(running_avg)
+    # Process bursts using new burst processing module
+    print("Processing bursts...")
+    bi4_bur_df, bg4_df, br4_df, by4_df = bp.process_bursts(
+        burst_index=burst_index,
+        all_macro_times=all_macro_times,
+        all_micro_times=all_micro_times,
+        routing_channels=routing_channels,
+        macro_res=macro_res,
+        micro_res=micro_res,
+        min_photon_count=min_photon_count,
+        min_photon_count_green=min_photon_count_green,
+        bg4_micro_time_min=bg4_micro_time_min,
+        bg4_micro_time_max=bg4_micro_time_max,
+        br4_micro_time_min=br4_micro_time_min,
+        br4_micro_time_max=br4_micro_time_max,
+        by4_micro_time_min=by4_micro_time_min,
+        by4_micro_time_max=by4_micro_time_max,
+        g_factor=g_factor,
+        g_factor_red=g_factor_red,
+        l1_japan_corr=l1_japan_corr,
+        l2_japan_corr=l2_japan_corr,
+        bg4_bkg_para=bg4_bkg_para,
+        bg4_bkg_perp=bg4_bkg_perp,
+        br4_bkg_para=br4_bkg_para,
+        br4_bkg_perp=br4_bkg_perp,
+        by4_bkg_para=by4_bkg_para,
+        by4_bkg_perp=by4_bkg_perp
+    )
 
-        # Estimate background noise
-        bins = {"x": 141, "y": 141}
-        bins_y = bins['y']
-        mu, std, noise_mean, filtered_logrunavg, bins_logrunavg = an.estimate_background_noise(logrunavg, bins_y)
+    print(f"Processed {len(bi4_bur_df)} valid bursts")
+    print("Columns in bi4_bur_df:", bi4_bur_df.columns.tolist())
+    print("Columns in bg4_df:", bg4_df.columns.tolist()) 
+    print("Columns in br4_df:", br4_df.columns.tolist())
+    print("Columns in by4_df:", by4_df.columns.tolist())
 
-        # Define threshold value for burst extraction
-        threshold_value = mu - 4 * std
-
-        # Extract bursts for the current chunk
-        burst_index, filtered_values = dat.extract_greater(logrunavg, threshold_value)
-
-        # Setup fit23 for the current chunk
-        counts_irf, _ = np.histogram(all_micro_times_irf, bins=num_bins)
-        counts_irf_nb = counts_irf.copy()
-        counts_irf_nb[0:3] = 0
-        counts_irf_nb[10:66] = 0
-        counts_irf_nb[74:128] = 0
-        fit23 = model.setup_fit23(num_bins, macro_res, counts_irf_nb, g_factor, l1_japan_corr, l2_japan_corr)
-
-        # Process bursts for the current chunk
-        bi4_bur_df, bg4_df = process.process_bursts(
-            burst_index, macro_times_chunk, micro_times_chunk, routing_channels_chunk, macro_res, micro_res,
-            min_photon_count, bg4_micro_time_min, bg4_micro_time_max, g_factor, l1_japan_corr,
-            l2_japan_corr, bg4_bkg_para, bg4_bkg_perp, fit23
-        )
-
-        # Append results for each chunk
-        all_bi4_bur_df.append(bi4_bur_df)
-        all_bg4_df.append(bg4_df)
-
-    # Concatenate results from all chunks
-    bi4_bur_df_combined = pd.concat(all_bi4_bur_df, ignore_index=True)
-    bg4_df_combined = pd.concat(all_bg4_df, ignore_index=True)
-
-    # Save results
+    # Save results (matching working pipeline output directory structure)
     output_directory = r'./tests/burstid_selection_viz_tool'
-    dat.save_results(output_directory, file_path, bi4_bur_df_combined, bg4_df_combined)
+    dat.save_results(output_directory, file_path, bi4_bur_df, bg4_df, br4_df, by4_df)
 
 if __name__ == '__main__':
     main()

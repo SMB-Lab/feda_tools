@@ -23,6 +23,8 @@ def flour_aniso(g_factor, intensity_para, intensity_perp, l1_japan_corr, l2_japa
     numerator = g_factor * intensity_para - intensity_perp
     denominator = ((1 - 3 * l2_japan_corr) * g_factor * intensity_para +
                    (2 - 3 * l1_japan_corr) * intensity_perp)
+    if denominator == 0.0:
+        return np.nan
     return numerator / denominator
 
 def interphoton_arrival_times(all_macro_times, all_micro_times, macro_res, micro_res):

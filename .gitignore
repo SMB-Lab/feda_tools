@@ -156,3 +156,6 @@ cython_debug/
 plots.yaml
 feda_tools/twodimtest.py
 .DS_Store
+test data/.DS_Store
+/test data/large_data
+test data/.DS_Store
